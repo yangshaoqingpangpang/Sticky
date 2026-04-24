@@ -1,0 +1,519 @@
+import SwiftUI
+import AppKit
+
+// MARK: - Todo List (单列列表)
+
+struct TodoListView: View {
+    @ObservedObject var store: DataStore
+    let todos: [Todo]
+    @State private var viewingImages: [NSImage] = []
+    @State private var viewingIndex = 0
+    @State private var showViewer = false
+
+    var body: some View {
+        ZStack {
+            if todos.isEmpty {
+                Text("点击 ＋ 新建")
+                    .font(.system(size: 13)).foregroundColor(Color(white: 0.7))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(todos) { todo in
+                            TodoRow(todo: todo, store: store) { imgs, idx in
+                                viewingImages = imgs; viewingIndex = idx; showViewer = true
+                            }
+                            if todo.id != todos.last?.id {
+                                Rectangle().fill(Color(white: 0.93)).frame(height: 0.5).padding(.leading, 36)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 6)
+                }
+            }
+
+            if showViewer {
+                ImageViewer(images: viewingImages, index: $viewingIndex) { showViewer = false }
+            }
+        }
+    }
+}
+
+// MARK: - Todo Row
+
+struct TodoRow: View {
+    let todo: Todo
+    @ObservedObject var store: DataStore
+    var onImageTap: ([NSImage], Int) -> Void
+    @State private var isHovered = false
+    @State private var shakeOffset: CGFloat = 0
+    @State private var slideOpen = false
+    @State private var editing = false
+    @State private var editText = ""
+    @State private var editDayIndex: Int? = nil
+    @State private var editHour: Int = 10
+    @State private var editMinute: Int = 0
+
+    private var overdue: Bool { store.isOverdue(todo) }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // 左侧滑出按钮
+            if slideOpen {
+                VStack(spacing: 6) {
+                    Button { startEdit(); slideOpen = false } label: {
+                        Text("修改").font(.system(size: 10, weight: .medium)).foregroundColor(Color(white: 0.5))
+                    }.buttonStyle(.plain)
+                    Button { withAnimation { store.deleteTodo(todo.id) } } label: {
+                        Text("删除").font(.system(size: 10, weight: .medium)).foregroundColor(.red.opacity(0.7))
+                    }.buttonStyle(.plain)
+                }
+                .frame(width: 32)
+                .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+
+            // 主行
+            HStack(alignment: .top, spacing: 10) {
+                // 色块
+                Circle().fill(todo.color.color)
+                    .frame(width: 8, height: 8)
+                    .overlay(Circle().stroke(Color.black.opacity(0.06), lineWidth: 0.5))
+                    .opacity(isHovered ? 0.95 : (todo.isDone ? 0.3 : 0.6))
+                    .padding(.top, 5)
+
+                // 内容
+                VStack(alignment: .leading, spacing: 3) {
+                    if editing {
+                        TextField("", text: $editText, onCommit: { saveEdit() })
+                            .textFieldStyle(.roundedBorder).font(.system(size: 13))
+
+                        // DDL 编辑：7天卡片
+                        Text("截止日期").font(.system(size: 10, weight: .medium)).foregroundColor(Color(white: 0.5))
+                        HStack(spacing: 4) {
+                            ForEach(0..<7, id: \.self) { i in
+                                let d = editDayDate(i)
+                                let sel = editDayIndex == i
+                                VStack(spacing: 1) {
+                                    Text("\(Calendar.current.component(.day, from: d))").font(.system(size: 10, weight: sel ? .bold : .medium)).monospacedDigit()
+                                    Text(editDayLabel(i)).font(.system(size: 7)).foregroundColor(sel ? store.settings.activeAccentDeep : Color(white: 0.5))
+                                }
+                                .frame(width: 32, height: 28)
+                                .background(RoundedRectangle(cornerRadius: 5).fill(sel ? store.settings.activeSwatch : Color(white: 0.96)))
+                                .overlay(RoundedRectangle(cornerRadius: 5).stroke(sel ? store.settings.activeAccent.opacity(0.4) : Color(white: 0.9), lineWidth: 0.5))
+                                .onTapGesture { withAnimation(.easeOut(duration: 0.1)) { editDayIndex = sel ? nil : i } }
+                            }
+                        }
+
+                        if editDayIndex != nil {
+                            HStack(spacing: 2) {
+                                ScrollDigit(value: $editHour, range: 0...23, step: 1)
+                                Text(":").font(.system(size: 14, weight: .medium)).foregroundColor(Color(white: 0.35))
+                                ScrollDigit(value: $editMinute, range: 0...55, step: 5)
+                                Spacer()
+                            }
+                        }
+
+                        HStack(spacing: 8) {
+                            Button("保存") { saveEdit() }
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(store.settings.activeAccentDeep)
+                            Button("取消") { editing = false }
+                                .font(.system(size: 11)).foregroundColor(Color(white: 0.5))
+                        }.buttonStyle(.plain)
+                    } else {
+                        Text(todo.text)
+                            .font(.system(size: 13)).tracking(-0.1)
+                            .foregroundColor(todo.isDone ? Color(white: 0.6) : Color(white: 0.13))
+                            .strikethrough(todo.isDone, color: Color(white: 0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack(spacing: 6) {
+                            Text(relativeTime(todo.createdAt))
+                                .font(.system(size: 11)).foregroundColor(Color(white: 0.6)).monospacedDigit()
+                            if let dl = todo.deadline {
+                                Text("· \(deadlineText(dl))")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(dl < Date() && !todo.isDone ? Color.red.opacity(0.7) : store.settings.activeAccentDeep)
+                                    .monospacedDigit()
+                            }
+                        }
+                    }
+                }
+
+                Spacer(minLength: 4)
+
+                // 缩略图
+                if let first = todo.imageNames.first, let img = store.loadImage(name: first) {
+                    Button {
+                        let all = todo.imageNames.compactMap { store.loadImage(name: $0) }
+                        onImageTap(all, 0)
+                    } label: {
+                        Image(nsImage: img)
+                            .resizable().aspectRatio(contentMode: .fill)
+                            .frame(width: 34, height: 34)
+                            .cornerRadius(7).clipped()
+                            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color(white: 0.92), lineWidth: 0.5))
+                            .overlay(alignment: .bottomTrailing) {
+                                if todo.imageNames.count > 1 {
+                                    Text("+\(todo.imageNames.count - 1)")
+                                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 3).padding(.vertical, 1)
+                                        .background(Color.black.opacity(0.55))
+                                        .cornerRadius(3).offset(x: -2, y: -2)
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // 三横线按钮（始终显示）
+                VStack(spacing: 2.5) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 0.5)
+                            .fill(Color(white: 0.72))
+                            .frame(width: 12, height: 1.5)
+                    }
+                }
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.easeOut(duration: 0.15)) { slideOpen.toggle() }
+                }
+                .padding(.top, 4)
+            }
+            .padding(.vertical, 9).padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isHovered ? Color(white: 0.97) : (overdue ? Color.red.opacity(0.04) : Color.clear))
+            )
+            .opacity(todo.isDone ? 0.65 : 1)
+            .onTapGesture {
+                if slideOpen { withAnimation(.easeOut(duration: 0.15)) { slideOpen = false } }
+                else if !editing { withAnimation(.easeOut(duration: 0.15)) { store.toggleTodo(todo.id) } }
+            }
+        }
+        .offset(x: shakeOffset)
+        .onHover { isHovered = $0 }
+        .onAppear { if overdue { startShake() } }
+    }
+
+    private func startEdit() {
+        editText = todo.text
+        if let dl = todo.deadline {
+            let cal = Calendar.current
+            let today = cal.startOfDay(for: Date())
+            let dlDay = cal.startOfDay(for: dl)
+            let diff = cal.dateComponents([.day], from: today, to: dlDay).day ?? 0
+            editDayIndex = (0...6).contains(diff) ? diff : nil
+            editHour = cal.component(.hour, from: dl)
+            editMinute = (cal.component(.minute, from: dl) / 5) * 5
+        } else {
+            editDayIndex = nil; editHour = 10; editMinute = 0
+        }
+        editing = true
+    }
+
+    private func saveEdit() {
+        let t = editText.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { editing = false; return }
+        var newDL: Date? = nil
+        if let idx = editDayIndex {
+            let base = Calendar.current.date(byAdding: .day, value: idx, to: Calendar.current.startOfDay(for: Date()))!
+            newDL = Calendar.current.date(bySettingHour: editHour, minute: editMinute, second: 0, of: base)
+        }
+        store.updateTodo(todo.id, text: t, deadline: newDL)
+        editing = false
+    }
+
+    private func editDayDate(_ i: Int) -> Date {
+        Calendar.current.date(byAdding: .day, value: i, to: Calendar.current.startOfDay(for: Date()))!
+    }
+    private func editDayLabel(_ i: Int) -> String {
+        if i == 0 { return "今天" }
+        if i == 1 { return "明天" }
+        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "EEE"
+        return f.string(from: editDayDate(i))
+    }
+
+    private func startShake() {
+        func step(_ n: Int) {
+            guard n < 14 else { shakeOffset = 0; return }
+            let dir: CGFloat = n.isMultiple(of: 2) ? 1 : -1
+            let amp: CGFloat = 5 * CGFloat(14 - n) / 14
+            withAnimation(.easeInOut(duration: 0.05)) { shakeOffset = dir * amp }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { step(n + 1) }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { step(0) }
+    }
+
+    private func relativeTime(_ date: Date) -> String {
+        let d = Date().timeIntervalSince(date)
+        if d < 60 { return "刚刚" }
+        if d < 3600 { return "\(Int(d/60))分钟前" }
+        if d < 86400 { return "\(Int(d/3600))小时前" }
+        let days = Int(d / 86400)
+        if days < 7 { return "\(days)天前" }
+        let f = DateFormatter(); f.dateFormat = "M月d日"; return f.string(from: date)
+    }
+
+    private func deadlineText(_ date: Date) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN")
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { f.dateFormat = "今天 HH:mm" }
+        else if cal.isDateInTomorrow(date) { f.dateFormat = "明天 HH:mm" }
+        else { f.dateFormat = "M/d HH:mm" }
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Delete shake
+
+struct DeleteShake: ViewModifier {
+    @State private var offset: CGFloat = 0
+    func body(content: Content) -> some View {
+        content.offset(x: offset).onAppear {
+            func step(_ n: Int) {
+                guard n < 8 else { offset = 0; return }
+                let dir: CGFloat = n.isMultiple(of: 2) ? 1 : -1
+                withAnimation(.easeInOut(duration: 0.04)) { offset = dir * 3 * CGFloat(8 - n) / 8 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { step(n + 1) }
+            }
+            step(0)
+        }
+    }
+}
+
+// MARK: - New Todo
+
+struct NewTodoOverlay: View {
+    @ObservedObject var store: DataStore
+    @Binding var isPresented: Bool
+    @State private var text = ""
+    @State private var color: TodoColor = .red
+    @State private var images: [NSImage] = []
+    @State private var selectedDayIndex: Int? = nil
+    @State private var selectedHour: Int = 10
+    @State private var selectedMinute: Int = 0
+
+    private let cal = Calendar.current
+    private var next7Days: [(date: Date, dayNum: String, label: String)] {
+        let wf = DateFormatter(); wf.locale = Locale(identifier: "zh_CN"); wf.dateFormat = "EEE"
+        return (0..<7).map { i in
+            let d = cal.date(byAdding: .day, value: i, to: cal.startOfDay(for: Date()))!
+            let num = "\(cal.component(.day, from: d))"
+            let label = i == 0 ? "今天" : (i == 1 ? "明天" : wf.string(from: d))
+            return (d, num, label)
+        }
+    }
+    private var computedDeadline: Date? {
+        guard let idx = selectedDayIndex else { return nil }
+        return cal.date(bySettingHour: selectedHour, minute: selectedMinute, second: 0, of: next7Days[idx].date)
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.25).onTapGesture { isPresented = false }
+            VStack(alignment: .leading, spacing: 12) {
+                Text("新建待办").font(.system(size: 16, weight: .semibold))
+                TextField("输入待办事项…", text: $text).textFieldStyle(.roundedBorder).font(.system(size: 13))
+
+                // DDL: 7天香囊卡片
+                Text("截止日期").font(.system(size: 11, weight: .medium)).foregroundColor(Color(white: 0.5))
+                HStack(spacing: 5) {
+                    ForEach(0..<7, id: \.self) { i in
+                        let day = next7Days[i]
+                        let sel = selectedDayIndex == i
+                        VStack(spacing: 1) {
+                            Text(day.dayNum).font(.system(size: 12, weight: sel ? .bold : .medium)).monospacedDigit()
+                            Text(day.label).font(.system(size: 8))
+                                .foregroundColor(sel ? store.settings.activeAccentDeep : Color(white: 0.5))
+                        }
+                        .frame(width: 38, height: 34)
+                        .background(SachetShape().fill(sel ? store.settings.activeSwatch : Color(white: 0.96)))
+                        .overlay(SachetShape().stroke(sel ? store.settings.activeAccent.opacity(0.4) : Color(white: 0.9), lineWidth: 0.5))
+                        .clipShape(SachetShape())
+                        .rotationEffect(.degrees(sin(Double(i * 5 + 3)) * 2), anchor: .top)
+                        .onTapGesture { withAnimation(.easeOut(duration: 0.1)) { selectedDayIndex = sel ? nil : i } }
+                    }
+                }
+
+                // 时间选择：翻页钟样式，滚轮上下调值
+                if selectedDayIndex != nil {
+                    HStack(spacing: 2) {
+                        Text("时间").font(.system(size: 11, weight: .medium)).foregroundColor(Color(white: 0.5))
+                        Spacer()
+                        // 小时：滚轮上下调
+                        ScrollDigit(value: $selectedHour, range: 0...23, step: 1)
+                        Text(":").font(.system(size: 18, weight: .medium, design: .monospaced)).foregroundColor(Color(white: 0.35))
+                        // 分钟：滚轮上下调，步进5
+                        ScrollDigit(value: $selectedMinute, range: 0...55, step: 5)
+                    }
+                }
+
+                HStack(spacing: 12) {
+                    ForEach(TodoColor.allCases, id: \.self) { c in
+                        Circle().fill(c.color).frame(width: 26, height: 26)
+                            .overlay(Circle().stroke(c == .white ? Color(white: 0.8) : Color.clear, lineWidth: 0.5))
+                            .overlay { if c == color { Circle().stroke(Color(white: 0.2), lineWidth: 2.5).frame(width: 30, height: 30) } }
+                            .onTapGesture { color = c }
+                    }
+                    Spacer()
+                }
+                HStack(alignment: .firstTextBaseline) {
+                    Text("图片").font(.system(size: 12, weight: .medium)).foregroundColor(.secondary)
+                    Text("您可直接粘贴，粘贴板中的图片会自动填充")
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(white: 0.65))
+                    Spacer()
+                    Text("\(images.count)/3").font(.system(size: 10, design: .monospaced)).foregroundColor(Color(white: 0.7))
+                }
+                HStack(spacing: 8) {
+                    ForEach(images.indices, id: \.self) { i in
+                        ZStack(alignment: .topTrailing) {
+                            Image(nsImage: images[i]).resizable().aspectRatio(contentMode: .fill)
+                                .frame(width: 48, height: 48).cornerRadius(8).clipped()
+                            Button { images.remove(at: i) } label: {
+                                Image(systemName: "xmark.circle.fill").font(.system(size: 14)).foregroundColor(.white).shadow(radius: 2)
+                            }.buttonStyle(.plain).offset(x: 4, y: -4)
+                        }
+                    }
+                    if images.count < 3 {
+                        Button { images.append(contentsOf: store.pickImages(max: 3 - images.count)) } label: {
+                            RoundedRectangle(cornerRadius: 8).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4]))
+                                .foregroundColor(Color(white: 0.75)).frame(width: 48, height: 48)
+                                .overlay { Text("＋").font(.system(size: 16)).foregroundColor(Color(white: 0.55)) }
+                        }.buttonStyle(.plain)
+                    }
+                }
+                HStack {
+                    Button("取消") { isPresented = false }.keyboardShortcut(.cancelAction)
+                    Spacer()
+                    Button("保存") { save() }.keyboardShortcut(.defaultAction)
+                        .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
+                }.padding(.top, 4)
+            }
+            .padding(20).frame(width: 340)
+            .background(.regularMaterial).cornerRadius(14).shadow(radius: 20)
+            .onAppear { setupPasteMonitor() }.onDisappear { removePasteMonitor() }
+        }
+    }
+    @State private var pasteMonitor: Any?
+    private func setupPasteMonitor() {
+        pasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+            if e.modifierFlags.contains(.command), e.charactersIgnoringModifiers == "v",
+               NSPasteboard.general.canReadItem(withDataConformingToTypes: [NSPasteboard.PasteboardType.tiff.rawValue, NSPasteboard.PasteboardType.png.rawValue, "public.image"]) {
+                DispatchQueue.main.async { self.pasteFromClipboard() }; return nil
+            }; return e
+        }
+    }
+    private func removePasteMonitor() { if let m = pasteMonitor { NSEvent.removeMonitor(m); pasteMonitor = nil } }
+    private func pasteFromClipboard() {
+        guard images.count < 3 else { return }
+        if let img = NSImage(pasteboard: NSPasteboard.general) { images.append(img); return }
+        if let urls = NSPasteboard.general.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true, .urlReadingContentsConformToTypes: ["public.image"]]) as? [URL] {
+            for url in urls.prefix(3 - images.count) { if let img = NSImage(contentsOf: url) { images.append(img) } }
+        }
+    }
+    private func save() {
+        let t = text.trimmingCharacters(in: .whitespaces); guard !t.isEmpty else { return }
+        store.addTodo(text: t, color: color, images: images, deadline: computedDeadline); isPresented = false
+    }
+}
+
+// MARK: - Scroll Digit (翻页钟数字，滚轮上下调值)
+
+struct ScrollDigit: View {
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    let step: Int
+    @State private var isHovered = false
+
+    var body: some View {
+        Text(String(format: "%02d", value))
+            .font(.system(size: 20, weight: .medium, design: .monospaced))
+            .foregroundColor(Color(white: 0.2))
+            .frame(width: 36, height: 30)
+            .background(RoundedRectangle(cornerRadius: 6).fill(isHovered ? Color(white: 0.92) : Color(white: 0.95)))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(white: 0.88), lineWidth: 0.5))
+            .overlay(ScrollWheelCatcher(onChange: { delta in
+                let new = value + (delta > 0 ? -step : step)
+                if new < range.lowerBound { value = range.upperBound + step + new }
+                else if new > range.upperBound { value = range.lowerBound }
+                else { value = new }
+            }))
+            .onHover { isHovered = $0 }
+    }
+}
+
+// 用 overlay 的 NSView 捕获滚轮/触摸板事件
+struct ScrollWheelCatcher: NSViewRepresentable {
+    let onChange: (CGFloat) -> Void
+
+    func makeNSView(context: Context) -> ScrollCatcherView {
+        let v = ScrollCatcherView()
+        v.onChange = onChange
+        return v
+    }
+    func updateNSView(_ v: ScrollCatcherView, context: Context) { v.onChange = onChange }
+}
+
+final class ScrollCatcherView: NSView {
+    var onChange: ((CGFloat) -> Void)?
+    private var accumulated: CGFloat = 0
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func scrollWheel(with event: NSEvent) {
+        // 用 scrollingDeltaY（触摸板连续值）
+        let dy = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.deltaY * 10
+        accumulated += dy
+        if abs(accumulated) > 12 {
+            onChange?(accumulated)
+            accumulated = 0
+        }
+        if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
+            accumulated = 0
+        }
+    }
+}
+
+// MARK: - Image Viewer
+
+struct ImageViewer: View {
+    let images: [NSImage]; @Binding var index: Int; let onClose: () -> Void
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.58).onTapGesture { onClose() }
+            if !images.isEmpty {
+                Image(nsImage: images[index]).resizable().aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: 360, maxHeight: 320).cornerRadius(12).shadow(radius: 16)
+                if images.count > 1 {
+                    HStack {
+                        navBtn("chevron.left") { index = (index - 1 + images.count) % images.count }
+                        Spacer()
+                        navBtn("chevron.right") { index = (index + 1) % images.count }
+                    }.padding(.horizontal, 14)
+                }
+                VStack {
+                    HStack { Spacer(); Button { onClose() } label: {
+                        Image(systemName: "xmark.circle.fill").font(.system(size: 22)).foregroundColor(.white.opacity(0.85))
+                    }.buttonStyle(.plain) }
+                    Spacer()
+                    Text("\(index + 1) / \(images.count)")
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.92))
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(.black.opacity(0.3)).cornerRadius(20)
+                }.padding(14)
+            }
+        }
+    }
+    private func navBtn(_ icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon).font(.system(size: 14, weight: .semibold))
+                .foregroundColor(Color(white: 0.13)).frame(width: 44, height: 44)
+                .background(.regularMaterial).clipShape(Circle()).shadow(color: .black.opacity(0.1), radius: 6)
+        }.buttonStyle(.plain)
+    }
+}

@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>便笺 · Sticky</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:           oklch(0.99 0.004 200);
+    --surface:      oklch(0.995 0.003 200 / 0.78);
+    --surface-solid:oklch(0.995 0.003 200);
+    --line:         oklch(0.90 0.012 200);
+    --line-soft:    oklch(0.94 0.010 200);
+    --ink:          oklch(0.22 0.015 220);
+    --ink-2:        oklch(0.42 0.012 220);
+    --ink-3:        oklch(0.60 0.010 220);
+    --ink-4:        oklch(0.78 0.008 210);
+    --accent:       oklch(0.82 0.075 195);   /* macaron cyan */
+    --accent-deep:  oklch(0.72 0.095 195);
+    --accent-soft:  oklch(0.94 0.035 195);
+    --accent-ghost: oklch(0.97 0.020 195);
+    --pri-high:     oklch(0.72 0.17  25);    /* red  */
+    --pri-mid:      oklch(0.85 0.14  85);    /* amber */
+    --pri-low:      oklch(0.80 0.13 150);    /* green */
+    --depth-heavy:  oklch(0.25 0.010 220);
+    --depth-mid:    oklch(0.70 0.010 220);
+    --depth-light:  oklch(0.96 0.005 220);
+    --shadow-sm: 0 1px 2px rgba(15, 30, 40, 0.04), 0 1px 1px rgba(15, 30, 40, 0.03);
+    --shadow-md: 0 10px 30px -8px rgba(15, 30, 40, 0.15), 0 2px 6px rgba(15, 30, 40, 0.05);
+    --shadow-lg: 0 32px 80px -16px rgba(15, 30, 40, 0.28), 0 8px 22px -6px rgba(15, 30, 40, 0.10);
+    --rad-xs: 6px;
+    --rad-sm: 8px;
+    --rad:    12px;
+    --rad-lg: 18px;
+    --rad-xl: 22px;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;font-family:var(--font-sans);color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+
+  /* ── desktop wallpaper ───────────────────────────────── */
+  .desktop{
+    position:fixed;inset:0;
+    background:
+      radial-gradient(1200px 700px at 12% 8%, oklch(0.92 0.045 195) 0%, transparent 55%),
+      radial-gradient(900px 600px at 90% 20%, oklch(0.93 0.035 180) 0%, transparent 50%),
+      radial-gradient(1100px 900px at 70% 100%, oklch(0.90 0.040 210) 0%, transparent 55%),
+      linear-gradient(180deg, oklch(0.95 0.025 195) 0%, oklch(0.90 0.035 200) 100%);
+  }
+
+  /* menu bar */
+  .menubar{
+    position:fixed;top:0;left:0;right:0;height:26px;z-index:500;
+    background:rgba(255,255,255,0.55);
+    backdrop-filter:blur(24px) saturate(180%);
+    -webkit-backdrop-filter:blur(24px) saturate(180%);
+    border-bottom:0.5px solid rgba(0,0,0,0.08);
+    display:flex;align-items:center;gap:18px;padding:0 14px;
+    font-size:13px;color:var(--ink);font-weight:500;
+  }
+  .menubar .apple{font-size:15px}
+  .menubar .app{font-weight:700}
+  .menubar .spacer{flex:1}
+  .menubar .right{display:flex;gap:14px;align-items:center;color:var(--ink-2);font-size:12.5px;font-weight:500}
+  .menubar .right .status-dot{width:6px;height:6px;border-radius:50%;background:var(--accent-deep)}
+
+  /* dock hint — bottom */
+  .dock{
+    position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
+    height:58px;padding:6px 12px;z-index:400;display:flex;gap:8px;align-items:center;
+    background:rgba(255,255,255,0.35);
+    backdrop-filter:blur(32px) saturate(180%);
+    -webkit-backdrop-filter:blur(32px) saturate(180%);
+    border:0.5px solid rgba(255,255,255,0.6);
+    border-radius:20px;
+    box-shadow:0 10px 30px rgba(15,30,40,0.12);
+  }
+  .dock .app{width:44px;height:44px;border-radius:11px;background:linear-gradient(180deg, oklch(0.94 0.03 var(--h,200)), oklch(0.78 0.09 var(--h,200)));box-shadow:inset 0 1px 0 rgba(255,255,255,0.5), 0 2px 4px rgba(0,0,0,0.08)}
+  .dock .sep{width:1px;height:32px;background:rgba(0,0,0,0.08);margin:0 4px}
+
+  /* ── Sticky sidebar dock (the 3px strip) ─────────────── */
+  /* 14px invisible hit zone · ::before=3px strip · ::after=handle bump */
+  .stick{position:fixed;top:36px;bottom:14px;z-index:1000;width:14px;background:transparent;cursor:pointer}
+  .stick.left{left:0}
+  .stick.right{right:0}
+  .stick::before{
+    content:"";position:absolute;top:0;bottom:0;width:3px;background:var(--accent);
+    transition:width 200ms cubic-bezier(.2,.8,.2,1), box-shadow 200ms;
+    animation:stickBreathe 3.2s ease-in-out infinite;
+  }
+  .stick.left::before {left:0;border-radius:0 2px 2px 0}
+  .stick.right::before{right:0;border-radius:2px 0 0 2px}
+  .stick::after{
+    content:"";position:absolute;top:50%;width:6px;height:44px;margin-top:-22px;
+    background:var(--accent-deep);opacity:.92;
+    box-shadow:0 2px 10px oklch(0.70 0.095 195 / 0.5);
+    transition:width 200ms cubic-bezier(.2,.8,.2,1), opacity 200ms, box-shadow 200ms;
+  }
+  .stick.left::after {left:0;border-radius:0 4px 4px 0}
+  .stick.right::after{right:0;border-radius:4px 0 0 4px}
+  .stick:hover::before{width:6px;box-shadow:0 0 0 6px oklch(0.82 0.075 195 / 0.22);animation:none}
+  .stick:hover::after {width:11px;opacity:1;box-shadow:0 2px 16px oklch(0.70 0.095 195 / 0.75)}
+  @keyframes stickBreathe{0%,100%{filter:brightness(1)}50%{filter:brightness(1.25) saturate(1.2)}}
+
+  /* ── Panel ────────────────────────────────────────────── */
+  .panel{
+    position:fixed;top:36px;bottom:14px;z-index:1100;
+    width:450px;
+    background:var(--surface);
+    backdrop-filter:blur(32px) saturate(180%);
+    -webkit-backdrop-filter:blur(32px) saturate(180%);
+    border:0.5px solid oklch(0.88 0.015 200 / 0.8);
+    box-shadow:var(--shadow-lg);
+    display:flex;flex-direction:column;
+    transition:transform 380ms cubic-bezier(.2,.85,.25,1), opacity 260ms, width 260ms cubic-bezier(.2,.85,.25,1);
+    overflow:hidden;
+  }
+  .panel.left{left:0;border-radius:0 var(--rad-xl) var(--rad-xl) 0}
+  .panel.right{right:0;border-radius:var(--rad-xl) 0 0 var(--rad-xl)}
+  .panel.left  { transform: translateX(calc(-100% - 12px)); }
+  .panel.right { transform: translateX(calc(100% + 12px)); }
+  .panel.peek.left  { transform: translateX(calc(-100% + 14px)); opacity:1 }
+  .panel.peek.right { transform: translateX(calc(100% - 14px)); opacity:1 }
+  .panel.open.left,
+  .panel.open.right { transform: translateX(0) !important; }
+
+  /* ── Header ───────────────────────────────────────────── */
+  .head{padding:22px 22px 16px;border-bottom:0.5px solid var(--line-soft);flex-shrink:0;position:relative}
+  .head .grip{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:32px;height:3px;border-radius:2px;background:var(--line);opacity:.6}
+  .time{font-size:48px;font-weight:500;letter-spacing:-1.5px;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+  .time .sec{font-size:20px;font-weight:400;color:var(--ink-3);margin-left:4px;letter-spacing:0}
+  .date-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:10px}
+  .date-btn{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);padding:3px 7px;border-radius:var(--rad-xs);transition:background 140ms}
+  .date-btn:hover{background:var(--accent-ghost);color:var(--ink)}
+  .date-btn .arrow{font-size:10px;opacity:.5}
+  .holiday{font-size:12.5px;color:var(--accent-deep);font-weight:500;display:flex;align-items:center;gap:8px}
+  .holiday .sep{width:3px;height:3px;border-radius:50%;background:var(--accent-deep);opacity:.7;flex-shrink:0}
+  .anniv-chip{font-size:11.5px;color:var(--ink-2);font-weight:500;padding:2px 8px;border-radius:999px;background:oklch(0.96 0.008 200);border:0.5px solid var(--line-soft);font-variant-numeric:tabular-nums;letter-spacing:-0.005em}
+
+  /* ── Section label ────────────────────────────────────── */
+  .section-label{
+    font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;font-weight:600;color:var(--ink-3);
+    padding:14px 22px 8px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .section-label .count{font-weight:500;color:var(--ink-4);letter-spacing:.05em}
+
+  /* ── Search ───────────────────────────────────────────── */
+  .search{margin:0 22px 2px;display:flex;align-items:center;gap:8px;padding:7px 12px;background:oklch(0.97 0.005 200);border:0.5px solid var(--line-soft);border-radius:var(--rad);transition:border 140ms, background 140ms}
+  .search:focus-within{border-color:var(--accent-deep);background:#fff}
+  .search svg{width:13px;height:13px;color:var(--ink-3);flex-shrink:0}
+  .search input{all:unset;flex:1;font:inherit;font-size:13px;color:var(--ink)}
+  .search input::placeholder{color:var(--ink-3)}
+  .kbd{font:500 10.5px/1 var(--font-mono);color:var(--ink-3);padding:2px 5px;border:0.5px solid var(--line);border-radius:4px;background:#fff}
+
+  /* ── Todo list ─────────────────────────────────────────── */
+  .list-scroll{flex:1;overflow-y:auto;padding:6px 14px 4px;min-height:120px}
+  .list-scroll::-webkit-scrollbar{width:6px}
+  .list-scroll::-webkit-scrollbar-thumb{background:oklch(0.85 0.008 200);border-radius:3px}
+  .list-scroll::-webkit-scrollbar-thumb:hover{background:oklch(0.75 0.010 200)}
+
+  .todo{
+    display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;
+    padding:9px 8px;border-radius:10px;position:relative;
+    transition:background 120ms;
+  }
+  .todo:hover{background:oklch(0.97 0.008 200)}
+  .todo.done .label{color:var(--ink-3);text-decoration:line-through;text-decoration-thickness:.5px;text-decoration-color:var(--ink-3)}
+  .todo+.todo{border-top:0.5px solid var(--line-soft)}
+  .todo:hover+.todo,.todo:hover{border-top-color:transparent}
+
+  .dots{display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0}
+  .dot{width:8px;height:8px;border-radius:50%;border:0.5px solid rgba(0,0,0,0.06);position:relative;opacity:.6;transition:opacity 120ms}
+  .dot::after{content:"";position:absolute;inset:0;border-radius:50%;background:rgba(255,255,255,0.4);pointer-events:none}
+  .dot.pri-high{background:var(--pri-high)}
+  .dot.pri-mid{background:var(--pri-mid)}
+  .dot.pri-low{background:var(--pri-low)}
+  .dot.depth-heavy{background:var(--depth-heavy)}
+  .dot.depth-mid{background:var(--depth-mid)}
+  .dot.depth-light{background:var(--depth-light);border-color:var(--line)}
+  .todo:hover .dot{opacity:.95}
+
+  .label{font-size:13px;line-height:1.35;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;letter-spacing:-0.01em}
+  .meta{font-size:11px;color:var(--ink-3);margin-top:2px;font-variant-numeric:tabular-nums}
+
+  .thumb{
+    width:34px;height:34px;border-radius:7px;flex-shrink:0;cursor:zoom-in;overflow:hidden;position:relative;
+    background:oklch(0.96 0.008 200);border:0.5px solid var(--line-soft);
+    transition:transform 140ms, box-shadow 140ms;
+  }
+  .thumb:hover{transform:scale(1.06);box-shadow:var(--shadow-sm)}
+  .thumb.empty{cursor:default;background:
+    repeating-linear-gradient(135deg, oklch(0.97 0.006 200) 0 4px, oklch(0.94 0.010 200) 4px 5px)}
+  .thumb.empty:hover{transform:none}
+  .thumb .n{position:absolute;right:3px;bottom:2px;font:500 9px/1 var(--font-mono);color:#fff;background:rgba(0,0,0,0.55);border-radius:3px;padding:2px 3px;pointer-events:none}
+
+  /* colored thumbs as placeholders */
+  .th-sw{display:block;width:100%;height:100%}
+
+  /* ── Quick copy tray ──────────────────────────────────── */
+  .tray{border-top:0.5px solid var(--line-soft);background:oklch(0.985 0.005 200 / 0.65);flex-shrink:0}
+  .tray-head{display:flex;justify-content:space-between;align-items:center;padding:10px 22px 2px}
+  .tray-title{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;font-weight:600;color:var(--ink-3)}
+  .tray-hint{font-size:10.5px;color:var(--ink-4);letter-spacing:.02em}
+  .tray-list{padding:2px 14px 12px}
+
+  .snip{
+    display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;
+    padding:7px 10px;border-radius:8px;cursor:copy;transition:background 120ms;
+  }
+  .snip:hover{background:oklch(0.95 0.010 200)}
+  .snip .txt{font:400 12.5px/1.4 var(--font-sans);color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;letter-spacing:-0.005em}
+  .snip .copy-hint{font-size:10.5px;color:var(--ink-4);opacity:0;transition:opacity 120ms;font-family:var(--font-sans)}
+  .snip:hover .copy-hint{opacity:1}
+  .snip.copied .copy-hint{opacity:1;color:var(--accent-deep)}
+
+  /* ── Lightbox ─────────────────────────────────────────── */
+  .lightbox{
+    position:fixed;inset:0;z-index:2000;
+    background:rgba(8,15,20,0.58);
+    backdrop-filter:blur(18px) saturate(140%);
+    -webkit-backdrop-filter:blur(18px) saturate(140%);
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity 200ms;
+  }
+  .lightbox.on{opacity:1;pointer-events:auto}
+  .lb-frame{
+    width:min(720px, 70vw);aspect-ratio:4/3;border-radius:var(--rad-lg);overflow:hidden;
+    box-shadow:var(--shadow-lg);background:#fff;position:relative;
+    transform:scale(.96);transition:transform 240ms cubic-bezier(.2,.8,.2,1)
+  }
+  .lightbox.on .lb-frame{transform:scale(1)}
+  .lb-frame .img{width:100%;height:100%}
+  .lb-caption{position:absolute;left:20px;bottom:18px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.4);font-size:14px;font-weight:500}
+  .lb-count{position:absolute;right:20px;top:18px;color:rgba(255,255,255,.92);font:500 12px/1 var(--font-mono);background:rgba(0,0,0,.3);padding:6px 10px;border-radius:20px}
+  .lb-nav{
+    position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;
+    background:rgba(255,255,255,.85);border:0.5px solid rgba(0,0,0,.08);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 140ms;
+    backdrop-filter:blur(12px);box-shadow:var(--shadow-md);
+  }
+  .lb-nav:hover{background:#fff;transform:translateY(-50%) scale(1.05)}
+  .lb-nav.prev{left:14px}
+  .lb-nav.right-shift{right:14px}
+  .lb-close{position:absolute;top:18px;right:20px;width:30px;height:30px;border-radius:50%;border:none;background:rgba(255,255,255,.85);cursor:pointer;font-size:14px;color:var(--ink)}
+
+  /* ── Anniversary page ─────────────────────────────────── */
+  .anniv{
+    position:absolute;inset:0;background:var(--surface-solid);
+    transform:translateX(100%);transition:transform 360ms cubic-bezier(.2,.85,.25,1);
+    display:flex;flex-direction:column;z-index:10;
+  }
+  .anniv.on{transform:translateX(0)}
+  .anniv-head{display:flex;align-items:center;gap:10px;padding:18px 22px 10px;border-bottom:0.5px solid var(--line-soft)}
+  .anniv-head .back{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--accent-deep);padding:4px 6px;border-radius:6px}
+  .anniv-head .back:hover{background:var(--accent-ghost)}
+  .anniv-head h2{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em}
+  .anniv-body{flex:1;overflow-y:auto;padding:6px 14px 14px}
+  .ann-row{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:12px 10px;border-radius:10px}
+  .ann-row:hover{background:oklch(0.97 0.008 200)}
+  .ann-row+.ann-row{border-top:0.5px solid var(--line-soft)}
+  .ann-cal{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    width:52px;height:52px;border-radius:10px;background:#fff;border:0.5px solid var(--line);
+    box-shadow:var(--shadow-sm);
+  }
+  .ann-cal .m{font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--pri-high);letter-spacing:.08em}
+  .ann-cal .d{font-size:20px;font-weight:600;color:var(--ink);line-height:1;margin-top:1px;font-variant-numeric:tabular-nums}
+  .ann-meta{min-width:0}
+  .ann-name{font-size:13.5px;font-weight:500;color:var(--ink);letter-spacing:-.01em}
+  .ann-sub{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+  .ann-count{font-size:11px;color:var(--accent-deep);font-variant-numeric:tabular-nums;font-weight:500;text-align:right;font-family:var(--font-mono);background:var(--accent-ghost);padding:3px 8px;border-radius:10px}
+  .ann-add{margin:14px 12px 0;display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border:0.5px dashed var(--line);border-radius:10px;color:var(--ink-3);font-size:12.5px;cursor:pointer;transition:all 140ms}
+  .ann-add:hover{border-color:var(--accent-deep);color:var(--accent-deep);background:var(--accent-ghost)}
+
+  /* ── Tweaks ───────────────────────────────────────────── */
+  .tweaks{
+    position:fixed;right:14px;bottom:84px;z-index:3000;width:250px;
+    background:var(--surface-solid);border:0.5px solid var(--line);border-radius:14px;
+    box-shadow:var(--shadow-lg);padding:12px 14px;display:none;font-size:12px;
+  }
+  .tweaks.on{display:block}
+  .tweaks h3{margin:0 0 8px;font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);font-weight:600}
+  .tweaks .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:0.5px solid var(--line-soft)}
+  .tweaks .row:first-of-type{border-top:0}
+  .tweaks label{color:var(--ink-2)}
+  .tweaks .chips{display:flex;gap:4px}
+  .tweaks .chip{all:unset;cursor:pointer;font-size:11px;padding:3px 8px;border-radius:6px;border:0.5px solid var(--line);color:var(--ink-2)}
+  .tweaks .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .tweaks input[type=range]{width:110px}
+
+  /* toast */
+  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(8px);
+    background:var(--ink);color:#fff;padding:7px 14px;border-radius:18px;font-size:12px;font-weight:500;
+    box-shadow:var(--shadow-md);opacity:0;transition:all 200ms;pointer-events:none;z-index:4000}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* intro hint */
+  .hint{position:fixed;z-index:990;font-size:11px;color:var(--ink-2);background:rgba(255,255,255,.75);backdrop-filter:blur(12px);border:0.5px solid var(--line);padding:6px 10px;border-radius:999px;box-shadow:var(--shadow-sm);display:flex;gap:6px;align-items:center;pointer-events:none;opacity:0;transition:opacity 240ms 300ms}
+  .hint.show{opacity:1}
+  .hint .arrow{color:var(--accent-deep)}
+</style>
+</head>
+<body>
+<div class="desktop"></div>
+
+<!-- menu bar -->
+<div class="menubar">
+  <span class="apple"></span>
+  <span class="app">便笺</span>
+  <span>文件</span><span>编辑</span><span>视图</span><span>显示</span><span>窗口</span><span>帮助</span>
+  <span class="spacer"></span>
+  <div class="right">
+    <span class="status-dot"></span>
+    <span id="mb-date">周一 4月20日</span>
+    <span id="mb-time">00:00</span>
+  </div>
+</div>
+
+<!-- dock -->
+<div class="dock" aria-hidden="true">
+  <div class="app" style="--h:200"></div>
+  <div class="app" style="--h:30"></div>
+  <div class="app" style="--h:140"></div>
+  <div class="app" style="--h:260"></div>
+  <div class="app" style="--h:80"></div>
+  <div class="sep"></div>
+  <div class="app" style="--h:195;background:linear-gradient(180deg, oklch(0.94 0.04 195), oklch(0.76 0.10 195));outline:2px solid oklch(0.72 0.095 195 / 0.5);outline-offset:2px"></div>
+  <div class="sep"></div>
+  <div class="app" style="--h:220"></div>
+  <div class="app" style="--h:340"></div>
+</div>
+
+<!-- hint -->
+<div class="hint" id="hint"><span class="arrow">←</span>悬停左侧边缘预览 · 点击固定</div>
+
+<!-- docks (strip) -->
+<div class="stick left"  id="strip-left"  title="便笺 (悬停预览 · 点击固定)"></div>
+<div class="stick right" id="strip-right" title="便笺 (悬停预览 · 点击固定)" style="display:none"></div>
+
+<!-- Panel -->
+<div class="panel left" id="panel">
+  <div class="head">
+    <div class="grip"></div>
+    <div class="time"><span id="t-hm">10:28</span><span class="sec" id="t-s">42</span></div>
+    <div class="date-row">
+      <button class="date-btn" id="btn-anniv">
+        <span id="t-date">2026年4月20日 · 周一</span>
+        <span class="arrow">›</span>
+      </button>
+      <span class="holiday" id="t-holiday"><span class="anniv-chip">距结婚纪念日 35 天</span><span class="sep"></span>谷雨</span>
+    </div>
+  </div>
+
+  <div class="section-label">
+    <span>待办事项</span>
+    <span class="count" id="todo-count">· 6</span>
+  </div>
+  <div class="search">
+    <svg viewBox="0 0 13 13" fill="none" aria-hidden="true"><circle cx="5.5" cy="5.5" r="4" stroke="currentColor" stroke-width="1.2"/><path d="M8.5 8.5l3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+    <input id="search" placeholder="搜索待办、片段…" />
+    <span class="kbd">⌘K</span>
+  </div>
+
+  <div class="list-scroll" id="list"></div>
+
+  <div class="tray">
+    <div class="tray-head">
+      <span class="tray-title">常用片段</span>
+      <span class="tray-hint" id="tray-hint">点击复制</span>
+    </div>
+    <div class="tray-list" id="tray"></div>
+  </div>
+
+  <!-- Anniversary panel (slides in from right) -->
+  <div class="anniv" id="anniv">
+    <div class="anniv-head">
+      <button class="back" id="anniv-back">‹ 返回</button>
+      <h2>纪念日 · 提醒</h2>
+    </div>
+    <div class="anniv-body" id="anniv-body"></div>
+  </div>
+</div>
+
+<!-- lightbox -->
+<div class="lightbox" id="lb">
+  <div class="lb-frame">
+    <div class="img" id="lb-img"></div>
+    <div class="lb-count" id="lb-count">1 / 3</div>
+    <div class="lb-caption" id="lb-caption"></div>
+    <button class="lb-nav prev" id="lb-prev" aria-label="上一张">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3 5 8l5 5" stroke="#222" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="lb-nav right-shift" id="lb-next" aria-label="下一张">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="#222" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="lb-close" id="lb-close" aria-label="关闭">✕</button>
+  </div>
+</div>
+
+<!-- tweaks panel -->
+<div class="tweaks" id="tweaks">
+  <h3>Tweaks</h3>
+  <div class="row">
+    <label>停靠侧</label>
+    <div class="chips">
+      <button class="chip on" data-side="left">左</button>
+      <button class="chip" data-side="right">右</button>
+    </div>
+  </div>
+  <div class="row">
+    <label>主题</label>
+    <div class="chips">
+      <button class="chip on" data-theme="light">浅色</button>
+      <button class="chip" data-theme="dark">深色</button>
+    </div>
+  </div>
+  <div class="row">
+    <label>色条色调</label>
+    <div class="chips">
+      <button class="chip on" data-hue="195">青</button>
+      <button class="chip" data-hue="150">薄荷</button>
+      <button class="chip" data-hue="25">杏</button>
+      <button class="chip" data-hue="300">薰</button>
+    </div>
+  </div>
+  <div class="row">
+    <label>面板宽度 <span id="w-val">450</span>px</label>
+    <input type="range" id="w-range" min="380" max="560" step="10" value="450" />
+  </div>
+</div>
+
+<div class="toast" id="toast">已复制</div>
+
+<script>
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "side": "left",
+  "theme": "light",
+  "hue": 150,
+  "panelWidth": 400
+}/*EDITMODE-END*/;
+
+// ── state ────────────────────────────────────────────────
+const state = {
+  side: TWEAK_DEFAULTS.side,
+  pinned: false,
+  peek: false,
+  panelWidth: TWEAK_DEFAULTS.panelWidth,
+  hue: TWEAK_DEFAULTS.hue,
+  theme: TWEAK_DEFAULTS.theme,
+};
+
+// 10 images worth of colorful striped placeholders
+const IMG_PALETTES = [
+  ['oklch(0.88 0.06 195)','oklch(0.76 0.10 200)'],
+  ['oklch(0.90 0.05 150)','oklch(0.78 0.09 155)'],
+  ['oklch(0.91 0.05 85)' ,'oklch(0.82 0.10 70)'],
+  ['oklch(0.88 0.06 25)' ,'oklch(0.78 0.12 20)'],
+  ['oklch(0.90 0.06 300)','oklch(0.78 0.10 305)'],
+  ['oklch(0.90 0.05 230)','oklch(0.78 0.09 235)'],
+];
+function swatch(i, label){
+  const [a,b] = IMG_PALETTES[i % IMG_PALETTES.length];
+  return `<svg class="th-sw" viewBox="0 0 60 60" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="g${i}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs>
+    <rect width="60" height="60" fill="url(#g${i})"/>
+    <g opacity="0.25" stroke="white" stroke-width="0.6">
+      <path d="M-10 20 L70 -10"/><path d="M-10 35 L70 5"/><path d="M-10 50 L70 20"/>
+    </g>
+    <text x="30" y="34" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="6" font-weight="500" fill="white" opacity="0.85">${label}</text>
+  </svg>`;
+}
+
+// ── Data ─────────────────────────────────────────────────
+const todos = [
+  { id:1, text:'回复 Alex 关于 Q2 roadmap 的邮件',      pri:'high', depth:'heavy', thumbs:[0,1], meta:'今天 · 14:00', done:false },
+  { id:2, text:'审阅便笺面板的微交互稿',                pri:'high', depth:'heavy', thumbs:[2,3,4], meta:'今天', done:false },
+  { id:3, text:'把周会纪要同步到共享文档',              pri:'mid',  depth:'mid',   thumbs:[5],   meta:'今天', done:false },
+  { id:4, text:'给设计 review 发起一轮时间收集',        pri:'mid',  depth:'heavy', thumbs:[],    meta:'明天', done:false },
+  { id:5, text:'续订桌面壁纸订阅',                      pri:'low',  depth:'light', thumbs:[1],   meta:'本周内', done:false },
+  { id:6, text:'整理读书笔记 · Designing Data-Intensive',pri:'low', depth:'mid',   thumbs:[2,0], meta:'本月', done:true  },
+  { id:7, text:'给小 A 发生日祝福（自动纪念日）',        pri:'high', depth:'mid',   thumbs:[3],   meta:'5月3日', done:false },
+  { id:8, text:'跑步 · 5km',                            pri:'low',  depth:'light', thumbs:[],    meta:'今晚 19:30', done:false },
+];
+
+const snippets = [
+  { text:'git commit -m "feat: " --signoff' },
+  { text:'ssh -i ~/.ssh/id_ed25519 user@host' },
+  { text:'Best regards,\\n— Sent from 便笺' },
+  { text:'⌘⇧4 · 区域截图到便笺' },
+];
+
+const anniversaries = [
+  { m:'APR', d:22, name:'地球日',             sub:'国际纪念日',                   count:'2天后',   color:'var(--pri-low)' },
+  { m:'MAY', d:1,  name:'国际劳动节',         sub:'法定假日 · 5天连休',           count:'11天后',  color:'var(--pri-high)' },
+  { m:'MAY', d:3,  name:'小A 生日',           sub:'自定义 · 第4次',               count:'13天后',  color:'var(--accent-deep)' },
+  { m:'MAY', d:5,  name:'立夏',               sub:'节气',                         count:'15天后',  color:'var(--pri-mid)' },
+  { m:'JUN', d:1,  name:'入职周年',           sub:'自定义 · 第3年',               count:'42天后',  color:'var(--accent-deep)' },
+  { m:'JUN', d:19, name:'端午节',             sub:'传统节日 · 3天连休',           count:'60天后',  color:'var(--pri-high)' },
+  { m:'SEP', d:26, name:'认识纪念日',         sub:'自定义 · 第7年',               count:'159天后', color:'var(--accent-deep)' },
+];
+
+// ── Clock ────────────────────────────────────────────────
+const weekdays = ['周日','周一','周二','周三','周四','周五','周六'];
+function tick(){
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  document.getElementById('t-hm').textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  document.getElementById('t-s').textContent  = pad(d.getSeconds());
+  const dateStr = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 · ${weekdays[d.getDay()]}`;
+  document.getElementById('t-date').textContent = dateStr;
+  document.getElementById('mb-date').textContent = `${weekdays[d.getDay()]} ${d.getMonth()+1}月${d.getDate()}日`;
+  document.getElementById('mb-time').textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+tick(); setInterval(tick, 1000);
+
+// ── Render list ──────────────────────────────────────────
+const listEl = document.getElementById('list');
+function renderList(filter=''){
+  const q = filter.trim().toLowerCase();
+  const items = todos.filter(t => !q || t.text.toLowerCase().includes(q));
+  document.getElementById('todo-count').textContent = `· ${items.length}`;
+  listEl.innerHTML = items.map(t => {
+    const firstImg = t.thumbs[0];
+    const thumb = firstImg != null
+      ? `<div class="thumb" data-todo="${t.id}">${swatch(firstImg, 'IMG')}${t.thumbs.length>1?`<span class="n">+${t.thumbs.length-1}</span>`:''}</div>`
+      : `<div class="thumb empty" aria-hidden="true"></div>`;
+    return `<div class="todo ${t.done?'done':''}" data-id="${t.id}">
+      <div class="dots">
+        <span class="dot pri-${t.pri}"  title="优先级"></span>
+        <span class="dot depth-${t.depth}" title="重要程度"></span>
+      </div>
+      <div>
+        <div class="label">${t.text}</div>
+        <div class="meta">${t.meta}</div>
+      </div>
+      ${thumb}
+    </div>`;
+  }).join('');
+}
+renderList();
+
+// ── Tray ─────────────────────────────────────────────────
+const trayEl = document.getElementById('tray');
+function renderTray(){
+  trayEl.innerHTML = snippets.map((s,i) => `
+    <div class="snip" data-i="${i}">
+      <span class="txt">${s.text.replace(/\\n/g,' ⏎ ')}</span>
+      <span class="copy-hint">复制</span>
+    </div>
+  `).join('');
+  document.getElementById('tray-hint').textContent = `· ${snippets.length}`;
+}
+renderTray();
+
+// ── Anniversaries ────────────────────────────────────────
+const annBody = document.getElementById('anniv-body');
+annBody.innerHTML = anniversaries.map(a => `
+  <div class="ann-row">
+    <div class="ann-cal"><div class="m" style="color:${a.color}">${a.m}</div><div class="d">${a.d}</div></div>
+    <div class="ann-meta">
+      <div class="ann-name">${a.name}</div>
+      <div class="ann-sub">${a.sub}</div>
+    </div>
+    <div class="ann-count">${a.count}</div>
+  </div>
+`).join('') + `<button class="ann-add">＋ 添加纪念日</button>`;
+
+// ── Side / panel logic ───────────────────────────────────
+const panel = document.getElementById('panel');
+const stripL = document.getElementById('strip-left');
+const stripR = document.getElementById('strip-right');
+const hint   = document.getElementById('hint');
+
+function applySide(){
+  panel.classList.remove('left','right');
+  panel.classList.add(state.side);
+  stripL.style.display = state.side==='left'  ? '' : 'none';
+  stripR.style.display = state.side==='right' ? '' : 'none';
+  // update hint position
+  hint.style.left = state.side==='left' ? '18px' : 'auto';
+  hint.style.right= state.side==='right'? '18px' : 'auto';
+  hint.style.top = '40px';
+  hint.querySelector('.arrow').textContent = state.side==='left' ? '←' : '→';
+  hint.innerHTML = state.side==='left'
+    ? '<span class="arrow">←</span>悬停屏幕左侧色条 · 点击固定'
+    : '悬停屏幕右侧色条 · 点击固定<span class="arrow">→</span>';
+}
+applySide();
+
+function applyTheme(){
+  document.documentElement.dataset.theme = state.theme;
+  if(state.theme === 'dark'){
+    document.documentElement.style.setProperty('--bg',          'oklch(0.20 0.015 220)');
+    document.documentElement.style.setProperty('--surface',     'oklch(0.23 0.015 220 / 0.85)');
+    document.documentElement.style.setProperty('--surface-solid','oklch(0.22 0.015 220)');
+    document.documentElement.style.setProperty('--ink',         'oklch(0.96 0.005 200)');
+    document.documentElement.style.setProperty('--ink-2',       'oklch(0.75 0.012 220)');
+    document.documentElement.style.setProperty('--ink-3',       'oklch(0.55 0.010 220)');
+    document.documentElement.style.setProperty('--ink-4',       'oklch(0.40 0.010 220)');
+    document.documentElement.style.setProperty('--line',        'oklch(0.32 0.015 220)');
+    document.documentElement.style.setProperty('--line-soft',   'oklch(0.28 0.012 220)');
+    document.documentElement.style.setProperty('--accent-ghost','oklch(0.30 0.030 195)');
+  } else {
+    // restore
+    document.documentElement.style.cssText = '';
+    applyHue();
+    applyWidth();
+  }
+}
+function applyHue(){
+  document.documentElement.style.setProperty('--accent',      `oklch(0.82 0.075 ${state.hue})`);
+  document.documentElement.style.setProperty('--accent-deep', `oklch(0.70 0.095 ${state.hue})`);
+  document.documentElement.style.setProperty('--accent-soft', `oklch(0.94 0.035 ${state.hue})`);
+  document.documentElement.style.setProperty('--accent-ghost',`oklch(0.97 0.020 ${state.hue})`);
+}
+function applyWidth(){
+  panel.style.width = state.panelWidth + 'px';
+}
+applyHue();applyWidth();
+
+// strip hover — peek
+function peekOn(){ if(state.pinned) return; state.peek=true; panel.classList.remove('open'); panel.classList.add('peek'); }
+function peekOff(){ if(state.pinned) return; state.peek=false; panel.classList.remove('peek'); }
+function pin(){ state.pinned=true; panel.classList.remove('peek'); panel.classList.add('open'); hint.classList.remove('show') }
+function unpin(){ state.pinned=false; panel.classList.remove('open'); }
+
+[stripL, stripR].forEach(s => {
+  s.addEventListener('mouseenter', peekOn);
+  s.addEventListener('mouseleave', peekOff);
+  s.addEventListener('click', ()=>{ pin(); });
+});
+panel.addEventListener('mouseenter', ()=>{ if(state.peek && !state.pinned) panel.classList.add('peek'); });
+panel.addEventListener('mouseleave', (e)=>{ if(!state.pinned){ peekOff(); }});
+
+// click-outside unpins
+document.addEventListener('mousedown', (e)=>{
+  if(!state.pinned) return;
+  if(!panel.contains(e.target) && !e.target.closest('.stick') && !e.target.closest('.tweaks')){
+    unpin();
+  }
+});
+
+// ── Search ───────────────────────────────────────────────
+document.getElementById('search').addEventListener('input', e => renderList(e.target.value));
+document.addEventListener('keydown', e => {
+  if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){
+    e.preventDefault(); pin(); document.getElementById('search').focus();
+  }
+  if(e.key === 'Escape'){
+    if(document.getElementById('lb').classList.contains('on')){ closeLB(); return; }
+    if(document.getElementById('anniv').classList.contains('on')){ document.getElementById('anniv').classList.remove('on'); return; }
+    unpin();
+  }
+  if(document.getElementById('lb').classList.contains('on')){
+    if(e.key==='ArrowLeft') navLB(-1);
+    if(e.key==='ArrowRight') navLB(1);
+  }
+});
+
+// ── Todos click: toggle done ─────────────────────────────
+listEl.addEventListener('click', e => {
+  const thumb = e.target.closest('.thumb:not(.empty)');
+  if(thumb){ const id = +thumb.dataset.todo; openLB(id); return; }
+  const row = e.target.closest('.todo');
+  if(row){
+    const id = +row.dataset.id;
+    const t = todos.find(x=>x.id===id);
+    t.done = !t.done;
+    renderList(document.getElementById('search').value);
+  }
+});
+
+// ── Tray click: copy ─────────────────────────────────────
+trayEl.addEventListener('click', e => {
+  const row = e.target.closest('.snip'); if(!row) return;
+  const i = +row.dataset.i;
+  const text = snippets[i].text.replace(/\\\\n/g,'\n');
+  navigator.clipboard?.writeText(text).catch(()=>{});
+  row.classList.add('copied');
+  row.querySelector('.copy-hint').textContent = '已复制 ✓';
+  toast(`已复制 · ${snippets[i].tag}`);
+  setTimeout(()=>{ row.classList.remove('copied'); row.querySelector('.copy-hint').textContent='复制'; }, 1400);
+});
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>t.classList.remove('on'), 1400);
+}
+
+// ── Lightbox ─────────────────────────────────────────────
+const lb = document.getElementById('lb');
+let lbState = { todoId:null, idx:0 };
+function openLB(todoId){
+  const t = todos.find(x=>x.id===todoId);
+  if(!t || !t.thumbs.length) return;
+  lbState = { todoId, idx:0 };
+  renderLB();
+  lb.classList.add('on');
+}
+function renderLB(){
+  const t = todos.find(x=>x.id===lbState.todoId);
+  const imgEl = document.getElementById('lb-img');
+  imgEl.innerHTML = swatch(t.thumbs[lbState.idx], `IMG ${lbState.idx+1}`);
+  document.getElementById('lb-count').textContent = `${lbState.idx+1} / ${t.thumbs.length}`;
+  document.getElementById('lb-caption').textContent = t.text;
+  document.getElementById('lb-prev').style.display = t.thumbs.length>1?'flex':'none';
+  document.getElementById('lb-next').style.display = t.thumbs.length>1?'flex':'none';
+}
+function navLB(dir){
+  const t = todos.find(x=>x.id===lbState.todoId);
+  lbState.idx = (lbState.idx + dir + t.thumbs.length) % t.thumbs.length;
+  renderLB();
+}
+function closeLB(){ lb.classList.remove('on'); }
+document.getElementById('lb-prev').onclick = ()=>navLB(-1);
+document.getElementById('lb-next').onclick = ()=>navLB(1);
+document.getElementById('lb-close').onclick = closeLB;
+lb.addEventListener('click', e => { if(e.target === lb) closeLB(); });
+
+// ── Anniversaries open/close ─────────────────────────────
+document.getElementById('btn-anniv').onclick = ()=>document.getElementById('anniv').classList.add('on');
+document.getElementById('anniv-back').onclick = ()=>document.getElementById('anniv').classList.remove('on');
+
+// ── Hint fade ────────────────────────────────────────────
+setTimeout(()=>hint.classList.add('show'), 400);
+setTimeout(()=>hint.classList.remove('show'), 4200);
+
+// ── Tweaks integration ───────────────────────────────────
+const tweaks = document.getElementById('tweaks');
+window.addEventListener('message', e => {
+  if(e.data?.type === '__activate_edit_mode'){ tweaks.classList.add('on'); }
+  if(e.data?.type === '__deactivate_edit_mode'){ tweaks.classList.remove('on'); }
+});
+window.parent.postMessage({type:'__edit_mode_available'}, '*');
+
+tweaks.addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if(!b) return;
+  if(b.dataset.side){ state.side=b.dataset.side; applySide(); b.parentNode.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on', x===b)); persist({side:state.side}); }
+  if(b.dataset.theme){ state.theme=b.dataset.theme; applyTheme(); b.parentNode.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on', x===b)); persist({theme:state.theme}); }
+  if(b.dataset.hue){ state.hue=+b.dataset.hue; applyHue(); b.parentNode.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on', x===b)); persist({hue:state.hue}); }
+});
+document.getElementById('w-range').addEventListener('input', e=>{
+  state.panelWidth = +e.target.value;
+  document.getElementById('w-val').textContent = state.panelWidth;
+  applyWidth();
+});
+document.getElementById('w-range').addEventListener('change', ()=> persist({panelWidth:state.panelWidth}));
+
+function persist(edits){
+  window.parent.postMessage({type:'__edit_mode_set_keys', edits}, '*');
+}
+</script>
+</body>
+</html>
