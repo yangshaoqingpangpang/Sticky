@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - Todo List (单列列表)
 
@@ -9,6 +10,7 @@ struct TodoListView: View {
     @State private var viewingImages: [NSImage] = []
     @State private var viewingIndex = 0
     @State private var showViewer = false
+    @State private var draggingTodoID: UUID?
 
     var body: some View {
         ZStack {
@@ -20,9 +22,13 @@ struct TodoListView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(todos) { todo in
-                            TodoRow(todo: todo, store: store) { imgs, idx in
+                            TodoRow(todo: todo, store: store, draggingTodoID: $draggingTodoID) { imgs, idx in
                                 viewingImages = imgs; viewingIndex = idx; showViewer = true
                             }
+                            .onDrop(of: [UTType.text], delegate: TodoReorderDelegate(
+                                targetID: todo.id, store: store, draggingTodoID: $draggingTodoID
+                            ))
+                            .opacity(draggingTodoID == todo.id ? 0.4 : 1)
                             if todo.id != todos.last?.id {
                                 Rectangle().fill(Color(white: 0.93)).frame(height: 0.5).padding(.leading, 36)
                             }
@@ -44,6 +50,7 @@ struct TodoListView: View {
 struct TodoRow: View {
     let todo: Todo
     @ObservedObject var store: DataStore
+    @Binding var draggingTodoID: UUID?
     var onImageTap: ([NSImage], Int) -> Void
     @State private var isHovered = false
     @State private var shakeOffset: CGFloat = 0
@@ -67,6 +74,16 @@ struct TodoRow: View {
                     Button { withAnimation { store.deleteTodo(todo.id) } } label: {
                         Text("删除").font(.system(size: 10, weight: .medium)).foregroundColor(.red.opacity(0.7))
                     }.buttonStyle(.plain)
+                    if !todo.isDone {
+                        Button { withAnimation { store.toggleSuperDeadline(todo.id) }; slideOpen = false } label: {
+                            Text(todo.isSuperDeadline ? "取消" : "死线")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(todo.isSuperDeadline ? Color(white: 0.5) : .white)
+                                .padding(.horizontal, 4).padding(.vertical, 2)
+                                .background(todo.isSuperDeadline ? Color.clear : Color.red.opacity(0.8))
+                                .cornerRadius(3)
+                        }.buttonStyle(.plain)
+                    }
                 }
                 .frame(width: 32)
                 .transition(.move(edge: .leading).combined(with: .opacity))
@@ -75,10 +92,10 @@ struct TodoRow: View {
             // 主行
             HStack(alignment: .top, spacing: 10) {
                 // 色块
-                Circle().fill(todo.color.color)
+                Circle().fill(todo.isSuperDeadline && !todo.isDone ? .white : todo.color.color)
                     .frame(width: 8, height: 8)
                     .overlay(Circle().stroke(Color.black.opacity(0.06), lineWidth: 0.5))
-                    .opacity(isHovered ? 0.95 : (todo.isDone ? 0.3 : 0.6))
+                    .opacity(isHovered ? 0.95 : (todo.isDone ? 0.3 : (todo.isSuperDeadline ? 0.9 : 0.6)))
                     .padding(.top, 5)
 
                 // 内容
@@ -121,19 +138,22 @@ struct TodoRow: View {
                                 .font(.system(size: 11)).foregroundColor(Color(white: 0.5))
                         }.buttonStyle(.plain)
                     } else {
+                        let superActive = todo.isSuperDeadline && !todo.isDone
                         Text(todo.text)
-                            .font(.system(size: 13)).tracking(-0.1)
-                            .foregroundColor(todo.isDone ? Color(white: 0.6) : Color(white: 0.13))
+                            .font(.system(size: 13, weight: superActive ? .semibold : .regular)).tracking(-0.1)
+                            .foregroundColor(todo.isDone ? Color(white: 0.6) : (superActive ? .white : Color(white: 0.13)))
                             .strikethrough(todo.isDone, color: Color(white: 0.6))
                             .fixedSize(horizontal: false, vertical: true)
 
                         HStack(spacing: 6) {
                             Text(relativeTime(todo.createdAt))
-                                .font(.system(size: 11)).foregroundColor(Color(white: 0.6)).monospacedDigit()
+                                .font(.system(size: 11))
+                                .foregroundColor(superActive ? Color.white.opacity(0.7) : Color(white: 0.6))
+                                .monospacedDigit()
                             if let dl = todo.deadline {
                                 Text("· \(deadlineText(dl))")
                                     .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(dl < Date() && !todo.isDone ? Color.red.opacity(0.7) : store.settings.activeAccentDeep)
+                                    .foregroundColor(todo.isDone ? Color(white: 0.6) : (superActive ? Color.white.opacity(0.85) : (dl < Date() ? Color.red.opacity(0.7) : store.settings.activeAccentDeep)))
                                     .monospacedDigit()
                             }
                         }
@@ -167,11 +187,11 @@ struct TodoRow: View {
                     .buttonStyle(.plain)
                 }
 
-                // 三横线按钮（始终显示）
+                // 三横线按钮（拖拽排序 + 点击菜单）
                 VStack(spacing: 2.5) {
                     ForEach(0..<3, id: \.self) { _ in
                         RoundedRectangle(cornerRadius: 0.5)
-                            .fill(Color(white: 0.72))
+                            .fill(todo.isSuperDeadline && !todo.isDone ? Color.white.opacity(0.5) : Color(white: 0.72))
                             .frame(width: 12, height: 1.5)
                     }
                 }
@@ -180,12 +200,16 @@ struct TodoRow: View {
                 .onTapGesture {
                     withAnimation(.easeOut(duration: 0.15)) { slideOpen.toggle() }
                 }
+                .onDrag {
+                    draggingTodoID = todo.id
+                    return NSItemProvider(object: todo.id.uuidString as NSString)
+                }
                 .padding(.top, 4)
             }
             .padding(.vertical, 9).padding(.horizontal, 8)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(isHovered ? Color(white: 0.97) : (overdue ? Color.red.opacity(0.04) : Color.clear))
+                    .fill(todo.isSuperDeadline && !todo.isDone ? Color.red.opacity(0.85) : (isHovered ? Color(white: 0.97) : Color.clear))
             )
             .opacity(todo.isDone ? 0.65 : 1)
             .onTapGesture {
@@ -446,30 +470,44 @@ struct ScrollDigit: View {
     }
 }
 
-// 用 overlay 的 NSView 捕获滚轮/触摸板事件
+// 用 overlay 的 NSView 捕获滚轮/触摸板事件（通过 Coordinator 防止野指针崩溃）
 struct ScrollWheelCatcher: NSViewRepresentable {
     let onChange: (CGFloat) -> Void
 
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeNSView(context: Context) -> ScrollCatcherView {
         let v = ScrollCatcherView()
-        v.onChange = onChange
+        v.coordinator = context.coordinator
+        context.coordinator.onChange = onChange
         return v
     }
-    func updateNSView(_ v: ScrollCatcherView, context: Context) { v.onChange = onChange }
+
+    func updateNSView(_ v: ScrollCatcherView, context: Context) {
+        context.coordinator.onChange = onChange
+    }
+
+    static func dismantleNSView(_ nsView: ScrollCatcherView, coordinator: Coordinator) {
+        nsView.coordinator = nil
+        coordinator.onChange = nil
+    }
+
+    class Coordinator {
+        var onChange: ((CGFloat) -> Void)?
+    }
 }
 
 final class ScrollCatcherView: NSView {
-    var onChange: ((CGFloat) -> Void)?
+    weak var coordinator: ScrollWheelCatcher.Coordinator?
     private var accumulated: CGFloat = 0
 
     override var acceptsFirstResponder: Bool { true }
 
     override func scrollWheel(with event: NSEvent) {
-        // 用 scrollingDeltaY（触摸板连续值）
         let dy = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.deltaY * 10
         accumulated += dy
         if abs(accumulated) > 12 {
-            onChange?(accumulated)
+            coordinator?.onChange?(accumulated)
             accumulated = 0
         }
         if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended {
@@ -516,4 +554,30 @@ struct ImageViewer: View {
                 .background(.regularMaterial).clipShape(Circle()).shadow(color: .black.opacity(0.1), radius: 6)
         }.buttonStyle(.plain)
     }
+}
+
+// MARK: - Todo Reorder Drop Delegate
+
+struct TodoReorderDelegate: DropDelegate {
+    let targetID: UUID
+    let store: DataStore
+    @Binding var draggingTodoID: UUID?
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingTodoID = nil
+        return true
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let sourceID = draggingTodoID, sourceID != targetID else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            store.moveTodo(from: sourceID, to: targetID)
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {}
 }

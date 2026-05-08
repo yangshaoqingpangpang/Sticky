@@ -6,6 +6,7 @@ final class DataStore: ObservableObject {
     @Published var todos: [Todo] = []
     @Published var anniversaries: [Anniversary] = []
     @Published var snippets: [Snippet] = []
+    @Published var notes: [Note] = []
     @Published var settings: AppSettings = AppSettings()
 
     private let dataURL: URL
@@ -26,6 +27,7 @@ final class DataStore: ObservableObject {
         var todos: [Todo]
         var anniversaries: [Anniversary]
         var snippets: [Snippet]
+        var notes: [Note]?
         var settings: AppSettings
     }
 
@@ -36,12 +38,12 @@ final class DataStore: ObservableObject {
             seedSampleData()
             return
         }
-        todos = s.todos; anniversaries = s.anniversaries; snippets = s.snippets; settings = s.settings
+        todos = s.todos; anniversaries = s.anniversaries; snippets = s.snippets; notes = s.notes ?? []; settings = s.settings
     }
 
     func save() {
         guard let json = try? JSONEncoder().encode(
-            Saved(todos: todos, anniversaries: anniversaries, snippets: snippets, settings: settings)
+            Saved(todos: todos, anniversaries: anniversaries, snippets: snippets, notes: notes, settings: settings)
         ) else { return }
         try? json.write(to: dataURL)
     }
@@ -98,6 +100,13 @@ final class DataStore: ObservableObject {
         guard let i = todos.firstIndex(where: { $0.id == id }) else { return }
         todos[i].isDone.toggle()
         todos[i].completedAt = todos[i].isDone ? Date() : nil
+        if todos[i].isDone { todos[i].isSuperDeadline = false }
+        save()
+    }
+
+    func toggleSuperDeadline(_ id: UUID) {
+        guard let i = todos.firstIndex(where: { $0.id == id }) else { return }
+        todos[i].isSuperDeadline.toggle()
         save()
     }
 
@@ -114,9 +123,17 @@ final class DataStore: ObservableObject {
     }
 
     func isOverdue(_ todo: Todo, now: Date = Date()) -> Bool {
-        guard !todo.isDone else { return false }
-        let age = now.timeIntervalSince(todo.createdAt)
-        return settings.reminderDays.contains { age >= Double($0) * 86400 }
+        guard !todo.isDone, let deadline = todo.deadline else { return false }
+        return deadline < now
+    }
+
+    func moveTodo(from sourceID: UUID, to targetID: UUID) {
+        guard let si = todos.firstIndex(where: { $0.id == sourceID }),
+              let ti = todos.firstIndex(where: { $0.id == targetID }),
+              si != ti else { return }
+        let item = todos.remove(at: si)
+        todos.insert(item, at: ti)
+        save()
     }
 
     // MARK: Snippets
@@ -134,6 +151,28 @@ final class DataStore: ObservableObject {
 
     func deleteSnippet(_ id: UUID) {
         snippets.removeAll { $0.id == id }
+        save()
+    }
+
+    // MARK: Notes
+
+    func addNote(title: String = "未命名笔记") -> UUID {
+        let note = Note(title: title)
+        notes.insert(note, at: 0)
+        save()
+        return note.id
+    }
+
+    func updateNote(_ id: UUID, title: String? = nil, content: String? = nil) {
+        guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
+        if let t = title { notes[i].title = t }
+        if let c = content { notes[i].content = c }
+        notes[i].updatedAt = Date()
+        save()
+    }
+
+    func deleteNote(_ id: UUID) {
+        notes.removeAll { $0.id == id }
         save()
     }
 

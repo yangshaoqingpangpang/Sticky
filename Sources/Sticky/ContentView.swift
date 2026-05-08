@@ -2,10 +2,12 @@ import SwiftUI
 import AppKit
 
 enum PanelPage { case main, anniversary, settings }
+enum MainTab { case todos, notes }
 
 struct ContentView: View {
     @ObservedObject var store: DataStore
     @State private var page: PanelPage = .main
+    @State private var activeTab: MainTab = .todos
     @State private var searchText = ""
     @State private var showNewTodo = false
 
@@ -74,59 +76,91 @@ struct ContentView: View {
             // Separator
             Rectangle().fill(Color(white: 0.92)).frame(height: 0.5).padding(.horizontal, 20)
 
-            // Section label
-            HStack {
-                Text("待办事项")
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .tracking(1.2)
+            // Tab bar
+            HStack(spacing: 0) {
+                tabButton("待办事项", tab: .todos)
+                tabButton("灵感", tab: .notes)
                 Spacer()
-                Text("· \(filteredTodos.count)")
-                    .font(.system(size: 10.5, weight: .medium))
+                if activeTab == .todos {
+                    Text("· \(filteredTodos.count)")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(Color(white: 0.6))
+                }
             }
-            .foregroundColor(Color(white: 0.6))
             .padding(.horizontal, 22).padding(.top, 14).padding(.bottom, 8)
 
-            // Search bar
-            HStack(spacing: 8) {
+            if activeTab == .todos {
+                // Search bar
                 HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(white: 0.6))
-                    TextField("搜索待办、片段…", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(white: 0.6))
+                        TextField("搜索待办、片段…", text: $searchText)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13))
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Color(white: 0.97))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(white: 0.92), lineWidth: 0.5))
+                    .cornerRadius(12)
+
+                    Button { showNewTodo = true } label: {
+                        Text("＋").font(.system(size: 15, weight: .medium))
+                            .frame(width: 30, height: 30)
+                            .background(store.settings.activeAccent.opacity(0.08))
+                            .foregroundColor(store.settings.activeAccentDeep)
+                            .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(Color(white: 0.97))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(white: 0.92), lineWidth: 0.5))
-                .cornerRadius(12)
+                .padding(.horizontal, 22).padding(.bottom, 2)
 
-                Button { showNewTodo = true } label: {
-                    Text("＋").font(.system(size: 15, weight: .medium))
-                        .frame(width: 30, height: 30)
-                        .background(store.settings.activeAccent.opacity(0.08))
-                        .foregroundColor(store.settings.activeAccentDeep)
-                        .cornerRadius(8)
+                // Todo list (flex area)
+                TodoListView(store: store, todos: filteredTodos)
+
+                // Quick copy tray
+                VStack(spacing: 0) {
+                    Rectangle().fill(Color(white: 0.92)).frame(height: 0.5)
+                    SnippetSection(store: store)
                 }
-                .buttonStyle(.plain)
+                .background(Color(white: 0.98).opacity(0.65))
+            } else {
+                NotesPanel(store: store)
             }
-            .padding(.horizontal, 22).padding(.bottom, 2)
-
-            // Todo list (flex area)
-            TodoListView(store: store, todos: filteredTodos)
-
-            // Quick copy tray
-            VStack(spacing: 0) {
-                Rectangle().fill(Color(white: 0.92)).frame(height: 0.5)
-                SnippetSection(store: store)
-            }
-            .background(Color(white: 0.98).opacity(0.65))
         }
+    }
+
+    private func tabButton(_ label: String, tab: MainTab) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.15)) { activeTab = tab }
+        } label: {
+            Text(label)
+                .font(.system(size: 10.5, weight: .semibold))
+                .tracking(1.2)
+                .foregroundColor(activeTab == tab ? store.settings.activeAccentDeep : Color(white: 0.6))
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(activeTab == tab ? store.settings.activeAccent.opacity(0.12) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     var filteredTodos: [Todo] {
         let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-        return q.isEmpty ? store.todos : store.todos.filter { $0.text.lowercased().contains(q) }
+        let base = q.isEmpty ? store.todos : store.todos.filter { $0.text.lowercased().contains(q) }
+        return base.sorted { a, b in
+            if a.isDone != b.isDone { return !a.isDone }
+            if a.isDone && b.isDone { return (a.completedAt ?? .distantPast) > (b.completedAt ?? .distantPast) }
+            if a.isSuperDeadline != b.isSuperDeadline { return a.isSuperDeadline }
+            let aHasDL = a.deadline != nil
+            let bHasDL = b.deadline != nil
+            if aHasDL != bHasDL { return aHasDL }
+            if let adl = a.deadline, let bdl = b.deadline { return adl < bdl }
+            return a.createdAt > b.createdAt
+        }
     }
 }
 

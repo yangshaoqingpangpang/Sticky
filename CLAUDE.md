@@ -51,6 +51,25 @@
 
 ---
 
+## 沙盒数据路径（CRITICAL）
+
+本应用启用了 App Sandbox，数据路径有两个，**必须操作沙盒路径**：
+
+| 路径 | 说明 |
+|------|------|
+| `~/Library/Containers/com.yangshaoqing.Sticky/Data/Library/Application Support/Sticky/data.json` | **应用实际读写的路径（沙盒）** |
+| `~/Library/Application Support/Sticky/data.json` | 非沙盒路径，应用不会读这里 |
+
+### 部署后数据恢复流程
+
+每次 `cp -R` 部署新 app 到桌面后，**必须执行**：
+1. `pkill -f "便笺.app"` — 先关掉应用
+2. 确认沙盒路径 `data.json` 内容是否被示例数据覆盖
+3. 如被覆盖，从非沙盒路径或桌面备份恢复到沙盒路径
+4. 再启动应用
+
+**严禁在应用运行时覆盖 data.json** — 应用会把内存中的旧数据写回磁盘，覆盖刚恢复的文件。
+
 ## 编译错误处理规则
 
 - 遇到编译/构建错误时，**自行修复，不询问用户**
@@ -62,6 +81,11 @@
 - 禁止花括号 `{}`、特殊字符、空格
 - 使用 kebab-case 或 snake_case
 - 文件名必须能反映内容
+
+## 域名规范
+
+- 本项目域名：`bianjian.techllm.tech`
+- **严禁使用 `vibe.techllm.tech`** — 那是其他项目的域名，不属于本项目
 
 ## 代码生成规范
 

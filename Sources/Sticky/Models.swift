@@ -11,6 +11,26 @@ struct Todo: Identifiable, Codable {
     var createdAt = Date()
     var completedAt: Date?
     var deadline: Date?
+    var isSuperDeadline = false
+
+    init(text: String, color: TodoColor = .red, imageNames: [String] = [], isDone: Bool = false,
+         createdAt: Date = Date(), completedAt: Date? = nil, deadline: Date? = nil, isSuperDeadline: Bool = false) {
+        self.text = text; self.color = color; self.imageNames = imageNames; self.isDone = isDone
+        self.createdAt = createdAt; self.completedAt = completedAt; self.deadline = deadline; self.isSuperDeadline = isSuperDeadline
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        text = try c.decode(String.self, forKey: .text)
+        color = try c.decodeIfPresent(TodoColor.self, forKey: .color) ?? .red
+        imageNames = try c.decodeIfPresent([String].self, forKey: .imageNames) ?? []
+        isDone = try c.decodeIfPresent(Bool.self, forKey: .isDone) ?? false
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        completedAt = try c.decodeIfPresent(Date.self, forKey: .completedAt)
+        deadline = try c.decodeIfPresent(Date.self, forKey: .deadline)
+        isSuperDeadline = try c.decodeIfPresent(Bool.self, forKey: .isSuperDeadline) ?? false
+    }
 }
 
 /// 四色：紧急红、不紧急绿、重要灰、不重要白
@@ -32,6 +52,29 @@ enum TodoColor: String, Codable, CaseIterable {
 struct Snippet: Identifiable, Codable {
     var id = UUID()
     var text: String
+}
+
+// MARK: - Note (灵感笔记)
+
+struct Note: Identifiable, Codable {
+    var id = UUID()
+    var title: String
+    var content: String
+    var createdAt = Date()
+    var updatedAt = Date()
+
+    init(title: String = "未命名笔记", content: String = "", createdAt: Date = Date(), updatedAt: Date = Date()) {
+        self.title = title; self.content = content; self.createdAt = createdAt; self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try c.decode(String.self, forKey: .title)
+        content = try c.decodeIfPresent(String.self, forKey: .content) ?? ""
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+    }
 }
 
 // MARK: - Anniversary

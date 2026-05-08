@@ -27,6 +27,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var deadlineTimer: Timer?
     private var notifiedIds: Set<UUID> = []  // 已提醒过的，避免重复
 
+    /// 窗口所在屏幕（多屏安全：优先用窗口所在屏幕，回退到主屏幕）
+    private var currentScreen: NSScreen {
+        window?.screen ?? NSScreen.main ?? NSScreen.screens[0]
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
         NSApp.setActivationPolicy(.accessory)
@@ -34,6 +39,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         createStatusItem()
         registerShortcut()
         startDeadlineChecker()
+
+        // 监听屏幕配置变化（插拔外接屏、分辨率改变）
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
+                                               object: nil, queue: .main) { [weak self] _ in
+            self?.adaptToCurrentScreen()
+        }
     }
 
     // MARK: - Window
@@ -141,23 +152,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelContainer.layer?.mask = mask
     }
 
+    // MARK: - 多屏适配
+
+    /// 窗口拖到新屏幕后、或外接屏插拔时，重新适配窗口高度和位置
+    private func adaptToCurrentScreen() {
+        let vf = currentScreen.visibleFrame
+        let x: CGFloat
+        if expanded {
+            x = dockedSide == .left ? vf.origin.x : vf.maxX - panelW
+        } else {
+            x = dockedSide == .left ? vf.origin.x : vf.maxX - stripW
+        }
+        let targetFrame = NSRect(x: x, y: vf.origin.y, width: expanded ? panelW : stripW, height: vf.height)
+        window.setFrame(targetFrame, display: true)
+        updatePanelMask(height: vf.height)
+    }
+
     // MARK: - Snap to nearest edge after drag
 
     private func snapToEdge() {
-        guard let screen = NSScreen.main else { return }
-        let vf = screen.visibleFrame
+        let vf = currentScreen.visibleFrame
         let mid = window.frame.origin.x + window.frame.width / 2
         let screenMid = vf.origin.x + vf.width / 2
 
         let newSide: Side = mid < screenMid ? .left : .right
         if newSide != dockedSide {
             dockedSide = newSide
-            updatePanelMask(height: window.frame.height)
+            updatePanelMask(height: vf.height)
         }
 
-        // 只吸附左右，保持当前 Y 和高度不变
+        // 吸附到窗口所在屏幕的边缘，高度适配该屏幕
         let x: CGFloat = dockedSide == .left ? vf.origin.x : vf.maxX - (expanded ? panelW : stripW)
-        let targetFrame = NSRect(x: x, y: window.frame.origin.y, width: expanded ? panelW : stripW, height: window.frame.height)
+        let targetFrame = NSRect(x: x, y: vf.origin.y, width: expanded ? panelW : stripW, height: vf.height)
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.1
@@ -169,14 +195,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Expand / Collapse
 
     func expand() {
-        guard !expanded, let screen = NSScreen.main else { return }
+        guard !expanded else { return }
         expanded = true
         collapseTimer?.invalidate()
 
         stripView.isHidden = true
         panelContainer.isHidden = false
 
-        let vf = screen.visibleFrame
+        let vf = currentScreen.visibleFrame
         let x: CGFloat = dockedSide == .left ? vf.origin.x : vf.maxX - panelW
 
         window.hasShadow = true
@@ -184,7 +210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.12
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            window.animator().setFrame(NSRect(x: x, y: window.frame.origin.y, width: panelW, height: window.frame.height), display: true)
+            window.animator().setFrame(NSRect(x: x, y: vf.origin.y, width: panelW, height: vf.height), display: true)
         }
 
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
@@ -193,12 +219,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func collapse() {
-        guard expanded, let screen = NSScreen.main else { return }
+        guard expanded else { return }
         expanded = false
         collapseTimer?.invalidate()
         if let m = clickMonitor { NSEvent.removeMonitor(m); clickMonitor = nil }
 
-        store.sortTodos()
         snapToEdge()  // 收起时吸附到最近边缘
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
@@ -226,12 +251,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func startScreenCapture() {
-        NSLog("[Sticky] startScreenCapture called")
         collapse()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            NSLog("[Sticky] launching ScreenCaptureManager")
             ScreenCaptureManager.shared.start { [weak self] image in
-                NSLog("[Sticky] capture done, size=\(image.size)")
                 guard let self else { return }
                 self.store.addTodo(text: "截图", color: .red, images: [image])
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -301,10 +323,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 拖拽结束后吸附到最近边缘
         NotificationCenter.default.addObserver(forName: NSWindow.didMoveNotification, object: nil, queue: .main) { [weak self] n in
             guard let self, let w = n.object as? NSWindow, w === self.window else { return }
-            // 延迟判断，等拖拽结束
             self.collapseTimer?.invalidate()
             NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(self.didFinishDrag), object: nil)
             self.perform(#selector(self.didFinishDrag), with: nil, afterDelay: 0.3)
+        }
+
+        // 窗口移到新屏幕后适配
+        NotificationCenter.default.addObserver(forName: NSWindow.didChangeScreenNotification, object: nil, queue: .main) { [weak self] n in
+            guard let self, let w = n.object as? NSWindow, w === self.window else { return }
+            self.adaptToCurrentScreen()
         }
     }
 
@@ -312,13 +339,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !expanded { snapToEdge() }
     }
 
-    // MARK: - Deadline checker (每分钟检测)
+    // MARK: - Deadline checker (每30秒检测)
 
     private func startDeadlineChecker() {
-        NSLog("[DDL] 启动定时检测，间隔30秒")
-        // 立即检查一次
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.checkDeadlines() }
-        // 每30秒检查
         deadlineTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             DispatchQueue.main.async { self?.checkDeadlines() }
         }
@@ -326,27 +350,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func checkDeadlines() {
         let now = Date()
-        var triggered: [String] = []
-
         for todo in store.todos {
             guard !todo.isDone, let dl = todo.deadline, !notifiedIds.contains(todo.id) else { continue }
             let remaining = dl.timeIntervalSince(now)
-            NSLog("[DDL] 检查: \(todo.text.prefix(15)) | 剩余\(Int(remaining))秒")
-            // 到期前5分钟内 或 已过期（但不超过24小时）
             if remaining < 300 && remaining > -86400 {
                 notifiedIds.insert(todo.id)
-                triggered.append(todo.text)
+                sendNotification(title: "待办提醒", body: todo.text)
             }
-        }
-
-        // 一次发送所有触发的通知
-        for text in triggered {
-            sendNotification(title: "待办提醒", body: text)
-            NSLog("[DDL] ✅ 已发送通知: \(text.prefix(20))")
-        }
-
-        if triggered.isEmpty {
-            NSLog("[DDL] 本次检查无触发（共\(store.todos.count)条待办）")
         }
     }
 
