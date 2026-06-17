@@ -29,7 +29,9 @@ struct TodoListView: View {
                                 targetID: todo.id, store: store, draggingTodoID: $draggingTodoID
                             ))
                             .opacity(draggingTodoID == todo.id ? 0.4 : 1)
-                            if todo.id != todos.last?.id {
+                            // 死线行用整块暖色背景,连续两条之间需要透气以免视觉粘连
+                            .padding(.vertical, todo.isSuperDeadline && !todo.isDone ? 3 : 0)
+                            if todo.id != todos.last?.id, !todo.isSuperDeadline {
                                 Rectangle().fill(Color(white: 0.93)).frame(height: 0.5).padding(.leading, 36)
                             }
                         }
@@ -404,6 +406,7 @@ struct NewTodoOverlay: View {
                 }
 
                 HStack(spacing: 12) {
+                    Text("分类").font(.system(size: 12, weight: .medium)).foregroundColor(.secondary)
                     ForEach(TodoColor.allCases, id: \.self) { c in
                         Circle().fill(c.color).frame(width: 26, height: 26)
                             .overlay(Circle().stroke(c == .white ? Color(white: 0.8) : Color.clear, lineWidth: 0.5))
