@@ -222,4 +222,69 @@ final class DataStore: ObservableObject {
         guard panel.runModal() == .OK else { return [] }
         return panel.urls.prefix(max).compactMap { NSImage(contentsOf: $0) }
     }
+
+    // MARK: - 备份 / 恢复
+
+    private struct Backup: Codable {
+        var version: Int
+        var todos: [Todo]
+        var anniversaries: [Anniversary]
+        var snippets: [Snippet]
+        var notes: [Note]
+        var settings: AppSettings
+        var images: [String: String]   // 文件名 -> base64
+    }
+
+    /// 导出全部数据（含图片）到用户选择的位置，默认桌面
+    func exportBackup() -> (ok: Bool, message: String) {
+        var imgs: [String: String] = [:]
+        for name in Set(todos.flatMap { $0.imageNames }) {
+            if let d = try? Data(contentsOf: imagesDir.appendingPathComponent(name)) {
+                imgs[name] = d.base64EncodedString()
+            }
+        }
+        let backup = Backup(version: 1, todos: todos, anniversaries: anniversaries,
+                            snippets: snippets, notes: notes, settings: settings, images: imgs)
+        guard let data = try? JSONEncoder().encode(backup) else {
+            return (false, "数据编码失败")
+        }
+        let df = DateFormatter(); df.dateFormat = "yyyyMMdd-HHmm"
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "便笺备份-\(df.string(from: Date())).json"
+        panel.directoryURL = URL(fileURLWithPath: "/Users/\(NSUserName())/Desktop")
+        guard panel.runModal() == .OK, let url = panel.url else { return (false, "已取消") }
+        do {
+            try data.write(to: url)
+            return (true, "已备份到「\(url.lastPathComponent)」")
+        } catch {
+            return (false, "写入失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 从用户选择的备份文件导入，覆盖当前全部数据
+    func importBackup() -> (ok: Bool, message: String) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.directoryURL = URL(fileURLWithPath: "/Users/\(NSUserName())/Desktop")
+        guard panel.runModal() == .OK, let url = panel.url else { return (false, "已取消") }
+        guard let data = try? Data(contentsOf: url),
+              let backup = try? JSONDecoder().decode(Backup.self, from: data) else {
+            return (false, "文件无法解析，请选择正确的备份文件")
+        }
+        for (name, b64) in backup.images {
+            if let d = Data(base64Encoded: b64) {
+                try? d.write(to: imagesDir.appendingPathComponent(name))
+            }
+        }
+        todos = backup.todos
+        anniversaries = backup.anniversaries
+        snippets = backup.snippets
+        notes = backup.notes
+        settings = backup.settings
+        save()
+        return (true, "已导入 \(backup.todos.count) 条待办、\(backup.snippets.count) 条片段")
+    }
 }

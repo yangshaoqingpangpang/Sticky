@@ -5,6 +5,7 @@ struct SettingsView: View {
     @ObservedObject var store: DataStore
     @Binding var page: PanelPage
     @State private var colorPanelObserver: Any?
+    @State private var backupAlert: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -13,6 +14,8 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     themeSection
+                    sectionDivider
+                    backupSection
                     sectionDivider
                     // 纪念日日历直接嵌入
                     sectionLabel("纪念日").padding(.bottom, 6)
@@ -24,6 +27,49 @@ struct SettingsView: View {
             }
         }
         .background(.background)
+        .alert("数据备份", isPresented: Binding(get: { backupAlert != nil }, set: { if !$0 { backupAlert = nil } })) {
+            Button("好的", role: .cancel) { backupAlert = nil }
+        } message: {
+            Text(backupAlert ?? "")
+        }
+    }
+
+    private var backupSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("数据备份")
+            Text("导出会把全部待办、片段、纪念日、笔记及图片打包成一个文件；导入会用所选备份覆盖当前数据。")
+                .font(.system(size: 10.5)).foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                Button {
+                    let r = store.exportBackup()
+                    if r.message != "已取消" { backupAlert = r.message }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "square.and.arrow.up").font(.system(size: 11, weight: .medium))
+                        Text("导出备份").font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(store.settings.activeAccentDeep)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(store.settings.activeAccent.opacity(0.1))
+                    .cornerRadius(8)
+                }.buttonStyle(.plain)
+
+                Button {
+                    let r = store.importBackup()
+                    if r.message != "已取消" { backupAlert = r.message }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "square.and.arrow.down").font(.system(size: 11, weight: .medium))
+                        Text("导入备份").font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(Color(white: 0.4))
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Color(white: 0.95))
+                    .cornerRadius(8)
+                }.buttonStyle(.plain)
+            }
+        }
     }
 
     private var sectionDivider: some View {

@@ -94,7 +94,8 @@ struct NoteRow: View {
                     Text(note.content)
                         .font(.system(size: 11.5))
                         .foregroundColor(Color(white: 0.5))
-                        .lineLimit(2)
+                        .lineLimit(8)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Text(relativeTime(note.updatedAt))
@@ -110,6 +111,18 @@ struct NoteRow: View {
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundColor(Color(white: 0.7))
                 .padding(.top, 6)
+
+            // 淡淡的删除错号
+            Button { store.deleteNote(note.id) } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Color(white: 0.6))
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(isHovered ? 0.9 : 0.35)
+            .padding(.top, 2)
         }
         .padding(.vertical, 9).padding(.horizontal, 8)
         .background(
@@ -119,9 +132,6 @@ struct NoteRow: View {
         .contentShape(Rectangle())
         .onTapGesture { onSelect(note.id) }
         .onHover { isHovered = $0 }
-        .contextMenu {
-            Button("删除", role: .destructive) { store.deleteNote(note.id) }
-        }
     }
 
     private func relativeTime(_ date: Date) -> String {
@@ -178,21 +188,38 @@ struct NoteEditorView: View {
 
             Rectangle().fill(Color(white: 0.92)).frame(height: 0.5).padding(.horizontal, 20)
 
-            // Title
-            TextField("标题", text: $title)
-                .textFieldStyle(.plain)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(Color(white: 0.13))
-                .padding(.horizontal, 22).padding(.top, 12).padding(.bottom, 4)
-                .onChange(of: title) { _, newVal in
-                    store.updateNote(note.id, title: newVal)
-                }
+            // Title（带浅色标注）
+            VStack(alignment: .leading, spacing: 3) {
+                Text("标题")
+                    .font(.system(size: 10, weight: .medium)).tracking(0.5)
+                    .foregroundColor(Color(white: 0.68))
+                TextField("输入标题…", text: $title)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(white: 0.13))
+                    .onChange(of: title) { _, newVal in
+                        store.updateNote(note.id, title: newVal)
+                    }
+            }
+            .padding(.horizontal, 22).padding(.top, 12).padding(.bottom, 8)
+
+            // 题目 / 内容 分隔线
+            Rectangle().fill(Color(white: 0.92)).frame(height: 0.5).padding(.horizontal, 22)
+
+            // 正文标注
+            HStack {
+                Text("正文")
+                    .font(.system(size: 10, weight: .medium)).tracking(0.5)
+                    .foregroundColor(Color(white: 0.68))
+                Spacer()
+            }
+            .padding(.horizontal, 22).padding(.top, 10).padding(.bottom, 2)
 
             // Content editor
             ScrollView {
                 NoteTextEditor(text: $content)
                     .padding(.horizontal, 18)
-                    .padding(.top, 4)
+                    .padding(.top, 2)
                     .frame(maxWidth: .infinity, minHeight: 300)
                     .onChange(of: content) { _, newVal in
                         store.updateNote(note.id, content: newVal)
