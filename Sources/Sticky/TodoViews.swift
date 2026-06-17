@@ -63,6 +63,10 @@ struct TodoRow: View {
 
     private var overdue: Bool { store.isOverdue(todo) }
 
+    // 方案 A：死线条目 = 左侧细红竖条（之前的亮红）+ 浅暖底
+    private let deadlineRed = Color.red
+    private let deadlineBG = Color(red: 0.96, green: 0.92, blue: 0.88)
+
     var body: some View {
         HStack(spacing: 0) {
             // 左侧滑出按钮
@@ -91,11 +95,11 @@ struct TodoRow: View {
 
             // 主行
             HStack(alignment: .top, spacing: 10) {
-                // 色块
-                Circle().fill(todo.isSuperDeadline && !todo.isDone ? .white : todo.color.color)
+                // 色块（死线项用左侧竖条代替，这里隐藏小点但保留 8pt 占位，保证文字左对齐一致）
+                Circle().fill(todo.color.color)
                     .frame(width: 8, height: 8)
                     .overlay(Circle().stroke(Color.black.opacity(0.06), lineWidth: 0.5))
-                    .opacity(isHovered ? 0.95 : (todo.isDone ? 0.3 : (todo.isSuperDeadline ? 0.9 : 0.6)))
+                    .opacity(todo.isSuperDeadline && !todo.isDone ? 0 : (isHovered ? 0.95 : (todo.isDone ? 0.3 : 0.6)))
                     .padding(.top, 5)
 
                 // 内容
@@ -141,19 +145,20 @@ struct TodoRow: View {
                         let superActive = todo.isSuperDeadline && !todo.isDone
                         Text(todo.text)
                             .font(.system(size: 13, weight: superActive ? .semibold : .regular)).tracking(-0.1)
-                            .foregroundColor(todo.isDone ? Color(white: 0.6) : (superActive ? .white : Color(white: 0.13)))
+                            .foregroundColor(todo.isDone ? Color(white: 0.6) : Color(white: 0.13))
                             .strikethrough(todo.isDone, color: Color(white: 0.6))
                             .fixedSize(horizontal: false, vertical: true)
 
                         HStack(spacing: 6) {
                             Text(relativeTime(todo.createdAt))
                                 .font(.system(size: 11))
-                                .foregroundColor(superActive ? Color.white.opacity(0.7) : Color(white: 0.6))
+                                .foregroundColor(superActive ? deadlineRed : Color(white: 0.6))
                                 .monospacedDigit()
                             if let dl = todo.deadline {
-                                Text("· \(deadlineText(dl))")
+                                let overdueDL = dl < Date()
+                                Text("· \(deadlineText(dl))\(superActive && overdueDL ? " · 逾期" : "")")
                                     .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(todo.isDone ? Color(white: 0.6) : (superActive ? Color.white.opacity(0.85) : (dl < Date() ? Color.red.opacity(0.7) : store.settings.activeAccentDeep)))
+                                    .foregroundColor(todo.isDone ? Color(white: 0.6) : (superActive ? deadlineRed : (overdueDL ? Color.red.opacity(0.7) : store.settings.activeAccentDeep)))
                                     .monospacedDigit()
                             }
                         }
@@ -191,7 +196,7 @@ struct TodoRow: View {
                 VStack(spacing: 2.5) {
                     ForEach(0..<3, id: \.self) { _ in
                         RoundedRectangle(cornerRadius: 0.5)
-                            .fill(todo.isSuperDeadline && !todo.isDone ? Color.white.opacity(0.5) : Color(white: 0.72))
+                            .fill(Color(white: 0.72))
                             .frame(width: 12, height: 1.5)
                     }
                 }
@@ -209,13 +214,36 @@ struct TodoRow: View {
             .padding(.vertical, 9).padding(.horizontal, 8)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(todo.isSuperDeadline && !todo.isDone ? Color.red.opacity(0.85) : (isHovered ? Color(white: 0.97) : Color.clear))
+                    .fill(todo.isSuperDeadline && !todo.isDone ? deadlineBG : (isHovered ? Color(white: 0.97) : Color.clear))
             )
+            .overlay(alignment: .leading) {
+                if todo.isSuperDeadline && !todo.isDone {
+                    // 细红竖条：离左缘留缝 + 上下内缩 + 胶囊形
+                    Capsule()
+                        .fill(deadlineRed)
+                        .frame(width: 5)
+                        .padding(.vertical, 7)
+                        .padding(.leading, 4)
+                }
+            }
             .opacity(todo.isDone ? 0.65 : 1)
             .onTapGesture {
                 if slideOpen { withAnimation(.easeOut(duration: 0.15)) { slideOpen = false } }
                 else if !editing { withAnimation(.easeOut(duration: 0.15)) { store.toggleTodo(todo.id) } }
             }
+            // 向右滑显示 修改 / 删除 / 死线;向左滑收起
+            .gesture(
+                DragGesture(minimumDistance: 14)
+                    .onEnded { v in
+                        guard !editing else { return }
+                        let dx = v.translation.width
+                        if dx > 28, !slideOpen {
+                            withAnimation(.easeOut(duration: 0.18)) { slideOpen = true }
+                        } else if dx < -20, slideOpen {
+                            withAnimation(.easeOut(duration: 0.18)) { slideOpen = false }
+                        }
+                    }
+            )
         }
         .offset(x: shakeOffset)
         .onHover { isHovered = $0 }
@@ -453,20 +481,48 @@ struct ScrollDigit: View {
     let step: Int
     @State private var isHovered = false
 
+    private func adjust(_ delta: Int) {
+        let new = value + delta
+        if new < range.lowerBound { value = range.upperBound + step + new }
+        else if new > range.upperBound { value = range.lowerBound }
+        else { value = new }
+    }
+
     var body: some View {
-        Text(String(format: "%02d", value))
-            .font(.system(size: 20, weight: .medium, design: .monospaced))
-            .foregroundColor(Color(white: 0.2))
-            .frame(width: 36, height: 30)
-            .background(RoundedRectangle(cornerRadius: 6).fill(isHovered ? Color(white: 0.92) : Color(white: 0.95)))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(white: 0.88), lineWidth: 0.5))
-            .overlay(ScrollWheelCatcher(onChange: { delta in
-                let new = value + (delta > 0 ? -step : step)
-                if new < range.lowerBound { value = range.upperBound + step + new }
-                else if new > range.upperBound { value = range.lowerBound }
-                else { value = new }
-            }))
-            .onHover { isHovered = $0 }
+        HStack(spacing: 3) {
+            Text(String(format: "%02d", value))
+                .font(.system(size: 20, weight: .medium, design: .monospaced))
+                .foregroundColor(Color(white: 0.2))
+                .frame(width: 36, height: 30)
+                .background(RoundedRectangle(cornerRadius: 6).fill(isHovered ? Color(white: 0.92) : Color(white: 0.95)))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(white: 0.88), lineWidth: 0.5))
+                .overlay(ScrollWheelCatcher(onChange: { delta in adjust(delta > 0 ? -step : step) }))
+                .onHover { isHovered = $0 }
+            VStack(spacing: 2) {
+                ScrollDigitArrow(systemName: "chevron.up") { adjust(step) }
+                ScrollDigitArrow(systemName: "chevron.down") { adjust(-step) }
+            }
+        }
+    }
+}
+
+// 上下箭头：方便非触摸板用户点按调值
+struct ScrollDigitArrow: View {
+    let systemName: String
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 8, weight: .bold))
+                .foregroundColor(Color(white: hovered ? 0.25 : 0.45))
+                .frame(width: 16, height: 13)
+                .background(RoundedRectangle(cornerRadius: 4).fill(hovered ? Color(white: 0.88) : Color(white: 0.95)))
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(white: 0.88), lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
     }
 }
 

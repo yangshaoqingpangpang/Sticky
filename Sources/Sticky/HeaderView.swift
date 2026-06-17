@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HeaderView: View {
     @ObservedObject var store: DataStore
+    var onSettings: () -> Void = {}
     @State private var now = Date()
     private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
@@ -14,7 +15,7 @@ struct HeaderView: View {
                 .tracking(-1.5)
                 .foregroundColor(Color(white: 0.13))
 
-            // Date row
+            // Date row — 整行点击进入设置页(与右上角齿轮等价的快捷入口)
             HStack(alignment: .firstTextBaseline, spacing: 0) {
                 // Date button
                 HStack(spacing: 6) {
@@ -56,6 +57,8 @@ struct HeaderView: View {
                 }
             }
             .padding(.top, 10)
+            .contentShape(Rectangle())
+            .onTapGesture { onSettings() }
         }
         .padding(.horizontal, 22).padding(.bottom, 16)
         .onReceive(timer) { now = $0 }

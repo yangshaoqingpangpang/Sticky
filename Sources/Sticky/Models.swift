@@ -97,12 +97,24 @@ struct AppSettings: Codable {
     var customColorG: Double?
     var customColorB: Double?
     var useCustomColor: Bool = false
+    // 窗口尺寸档:大(默认) / 小. 用 raw 形式存以兼容旧 data.json
+    var sizeModeRaw: String?
+}
+
+enum SizeMode: String, Codable, CaseIterable {
+    case large, small
 }
 
 extension AppSettings {
     var customColor: Color? {
         guard let r = customColorR, let g = customColorG, let b = customColorB else { return nil }
         return Color(red: r, green: g, blue: b)
+    }
+
+    /// 窗口尺寸档
+    var sizeMode: SizeMode {
+        get { SizeMode(rawValue: sizeModeRaw ?? "") ?? .large }
+        set { sizeModeRaw = newValue.rawValue }
     }
 
     /// 当前生效的主色

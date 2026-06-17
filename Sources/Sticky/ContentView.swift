@@ -10,6 +10,16 @@ struct ContentView: View {
     @State private var activeTab: MainTab = .todos
     @State private var searchText = ""
     @State private var showNewTodo = false
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @State private var onboardingStep: Int? = nil
+
+    private let onboardingSteps: [(id: String, title: String, text: String)] = [
+        ("todo", "待办事项工作区", "这里是主工作区，单击可以关闭，点击右侧三杠可以完全删除以及设置死线"),
+        ("notes", "灵感区", "这是用于随手记的区域，点右侧的 ✕ 可删除"),
+        ("snippets", "常用片段区", "常用短语放这里，点击快速复制，记录密码邮箱很方便"),
+        ("settings", "设置区", "这里可以配色，自定义节日，做更懂你的便笺工具。"),
+        ("camera", "截屏待办", "点击相机即可截屏，快速生成一张图片待办。"),
+    ]
 
     var body: some View {
         ZStack {
@@ -27,6 +37,33 @@ struct ContentView: View {
         }
         .animation(.spring(response: 0.35), value: page)
         .animation(.easeOut(duration: 0.2), value: showNewTodo)
+        .overlayPreferenceValue(OnboardingAnchorKey.self) { anchors in
+            if let stepIdx = onboardingStep {
+                GeometryReader { proxy in
+                    OnboardingOverlay(
+                        anchors: anchors, proxy: proxy, step: stepIdx, steps: onboardingSteps,
+                        onNext: { advanceOnboarding() }, onSkip: { finishOnboarding() }
+                    )
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.25), value: onboardingStep)
+        .onReceive(NotificationCenter.default.publisher(for: .showOnboarding)) { _ in
+            guard !hasSeenOnboarding, onboardingStep == nil else { return }
+            onboardingStep = 0
+        }
+    }
+
+    private func advanceOnboarding() {
+        guard let s = onboardingStep else { return }
+        if s + 1 < onboardingSteps.count { onboardingStep = s + 1 }
+        else { finishOnboarding() }
+    }
+
+    private func finishOnboarding() {
+        hasSeenOnboarding = true
+        onboardingStep = nil
     }
 
     private var mainPage: some View {
@@ -45,6 +82,14 @@ struct ContentView: View {
                 .contentShape(Rectangle())
                 .overlay(WindowDragHandle())
 
+                // 左上角:尺寸档切换(大/小)
+                HStack(spacing: 6) {
+                    sizeButton(.large, label: "大")
+                    sizeButton(.small, label: "小")
+                    Spacer()
+                }
+                .padding(.leading, 22)
+
                 // 按钮（右上角，浮在拖拽区域上方）
                 HStack(spacing: 12) {
                     Spacer()
@@ -55,23 +100,25 @@ struct ContentView: View {
                             .frame(width: 22, height: 22)
                     }
                     .buttonStyle(.plain)
+                    .onboardingAnchor("camera")
                     Button { withAnimation { page = .settings } } label: {
-                        Image(systemName: "sparkle")
+                        Image(systemName: "gearshape")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(Color(white: 0.65))
                             .frame(width: 22, height: 22)
                     }
                     .buttonStyle(.plain)
+                    .onboardingAnchor("settings")
                 }
                 .padding(.trailing, 22)
             }
             .frame(height: 24)
             .padding(.top, 14)
 
-            // Header
-            HeaderView(store: store)
-                .contentShape(Rectangle())
-                .onTapGesture { withAnimation { page = .settings } }
+            // Header (日期行点击 → 进入设置页)
+            HeaderView(store: store, onSettings: {
+                withAnimation { page = .settings }
+            })
 
             // Separator
             Rectangle().fill(Color(white: 0.92)).frame(height: 0.5).padding(.horizontal, 20)
@@ -80,6 +127,7 @@ struct ContentView: View {
             HStack(spacing: 0) {
                 tabButton("待办事项", tab: .todos)
                 tabButton("灵感", tab: .notes)
+                    .onboardingAnchor("notes")
                 Spacer()
                 if activeTab == .todos {
                     Text("· \(filteredTodos.count)")
@@ -118,6 +166,7 @@ struct ContentView: View {
 
                 // Todo list (flex area)
                 TodoListView(store: store, todos: filteredTodos)
+                    .onboardingAnchor("todo")
 
                 // Quick copy tray
                 VStack(spacing: 0) {
@@ -125,10 +174,41 @@ struct ContentView: View {
                     SnippetSection(store: store)
                 }
                 .background(Color(white: 0.98).opacity(0.65))
+                .onboardingAnchor("snippets")
             } else {
                 NotesPanel(store: store)
             }
         }
+    }
+
+    private func sizeButton(_ mode: SizeMode, label: String) -> some View {
+        let active = store.settings.sizeMode == mode
+        // 大 = 大方块,小 = 小方块,用 SF Symbol 实心矩形区分
+        let icon: String = mode == .large ? "square.fill" : "square"
+        let iconSize: CGFloat = mode == .large ? 9 : 7
+        return Button {
+            guard !active else { return }
+            withAnimation(.easeOut(duration: 0.18)) {
+                store.settings.sizeMode = mode
+                store.save()
+            }
+            NotificationCenter.default.post(name: .sizeModeChanged, object: nil)
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.system(size: iconSize, weight: .semibold))
+                Text(label)
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .foregroundColor(active ? store.settings.activeAccentDeep : Color(white: 0.6))
+            .padding(.horizontal, 6).padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(active ? store.settings.activeAccent.opacity(0.14) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .help(label + "尺寸")
     }
 
     private func tabButton(_ label: String, tab: MainTab) -> some View {
@@ -173,6 +253,7 @@ struct SnippetSection: View {
     @State private var editText = ""
     @State private var showAdd = false
     @State private var newText = ""
+    private let rowHeight: CGFloat = 30
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -196,10 +277,13 @@ struct SnippetSection: View {
                     .foregroundColor(Color(white: 0.7))
                     .frame(maxWidth: .infinity).padding(.vertical, 12)
             } else {
-                let scrollable = store.snippets.count > 5
-                Group {
-                    if scrollable { ScrollView { list }.frame(maxHeight: 160) }
-                    else { list }
+                // 大档:≤4 条全显示,≥5 条锁 4.5 行;小档:始终锁 2.5 行让出垂直空间
+                let maxRows: CGFloat = store.settings.sizeMode == .large ? 4.5 : 2.5
+                let threshold = Int(maxRows.rounded(.down))
+                if store.snippets.count > threshold {
+                    ScrollView { list }.frame(height: rowHeight * maxRows)
+                } else {
+                    list
                 }
             }
 
@@ -267,7 +351,8 @@ struct SnippetSection: View {
                             .font(.system(size: 10.5))
                             .foregroundColor(store.settings.activeAccentDeep)
                     }
-                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .padding(.horizontal, 10)
+                    .frame(height: rowHeight)
                     .background(
                         RoundedRectangle(cornerRadius: 8)
                             .fill(copiedId == s.id ? Color(white: 0.95) : Color.clear)
@@ -330,6 +415,110 @@ final class DragHandleNSView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) {
         window?.performDrag(with: event)
+    }
+}
+
+// MARK: - Onboarding (首次启动引导遮罩)
+
+struct OnboardingAnchorKey: PreferenceKey {
+    static let defaultValue: [String: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+extension View {
+    func onboardingAnchor(_ id: String) -> some View {
+        anchorPreference(key: OnboardingAnchorKey.self, value: .bounds) { [id: $0] }
+    }
+    // 在暗色遮罩上挖一个圆角矩形透光孔
+    func punchHole(_ rect: CGRect, cornerRadius: CGFloat) -> some View {
+        mask {
+            ZStack {
+                Rectangle()
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .frame(width: rect.width, height: rect.height)
+                    .position(x: rect.midX, y: rect.midY)
+                    .blendMode(.destinationOut)
+            }
+            .compositingGroup()
+        }
+    }
+}
+
+struct OnboardingOverlay: View {
+    let anchors: [String: Anchor<CGRect>]
+    let proxy: GeometryProxy
+    let step: Int
+    let steps: [(id: String, title: String, text: String)]
+    let onNext: () -> Void
+    let onSkip: () -> Void
+
+    var body: some View {
+        let info = steps[step]
+        let rect = anchors[info.id].map { proxy[$0].insetBy(dx: -6, dy: -6) }
+        return ZStack(alignment: .topLeading) {
+            Group {
+                if let rect { Color.black.opacity(0.62).punchHole(rect, cornerRadius: 12) }
+                else { Color.black.opacity(0.62) }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { onNext() }
+
+            if let rect {
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.9), lineWidth: 2)
+                    .frame(width: rect.width, height: rect.height)
+                    .position(x: rect.midX, y: rect.midY)
+                    .allowsHitTesting(false)
+            }
+
+            bubble(info: info, rect: rect)
+        }
+    }
+
+    @ViewBuilder
+    private func bubble(info: (id: String, title: String, text: String), rect: CGRect?) -> some View {
+        let bubbleWidth = min(proxy.size.width - 40, 280)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("\(step + 1)/\(steps.count)")
+                    .font(.system(size: 10, weight: .bold)).foregroundColor(.white.opacity(0.55))
+                Spacer()
+                Button(action: onSkip) {
+                    Text("跳过").font(.system(size: 11)).foregroundColor(.white.opacity(0.6))
+                }.buttonStyle(.plain)
+            }
+            Text(info.title).font(.system(size: 14, weight: .semibold)).foregroundColor(.white)
+            Text(info.text)
+                .font(.system(size: 12.5)).foregroundColor(.white.opacity(0.88))
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button(action: onNext) {
+                    Text(step == steps.count - 1 ? "知道了" : "下一步")
+                        .font(.system(size: 12, weight: .medium)).foregroundColor(.black)
+                        .padding(.horizontal, 14).padding(.vertical, 6)
+                        .background(Color.white).cornerRadius(8)
+                }.buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+        .frame(width: bubbleWidth, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color(white: 0.15)))
+        .position(bubblePosition(rect: rect, width: bubbleWidth))
+    }
+
+    private func bubblePosition(rect: CGRect?, width: CGFloat) -> CGPoint {
+        let w = proxy.size.width, h = proxy.size.height
+        guard let rect else { return CGPoint(x: w / 2, y: h / 2) }
+        let estH: CGFloat = 132
+        let below = rect.maxY < h * 0.5
+        let x = min(max(rect.midX, width / 2 + 20), w - width / 2 - 20)
+        let y = below
+            ? min(rect.maxY + estH / 2 + 16, h - estH / 2 - 12)
+            : max(rect.minY - estH / 2 - 16, estH / 2 + 12)
+        return CGPoint(x: x, y: y)
     }
 }
 

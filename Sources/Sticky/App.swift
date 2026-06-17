@@ -1,6 +1,11 @@
 import SwiftUI
 import AppKit
 
+extension Notification.Name {
+    static let showOnboarding = Notification.Name("showOnboarding")
+    static let sizeModeChanged = Notification.Name("sizeModeChanged")
+}
+
 @main
 struct StickyNoteApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -14,7 +19,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = DataStore()
 
     private let stripW: CGFloat = 4
-    private let panelW: CGFloat = 400
     private(set) var expanded = false
     private var collapseTimer: Timer?
     private var clickMonitor: Any?
@@ -24,8 +28,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var stripView: NSView!
     private var panelContainer: NSView!
+    private var hostingWidthConstraint: NSLayoutConstraint!
+    private var stripBarLayer: CALayer?
+    private var stripHandleLayer: CALayer?
     private var deadlineTimer: Timer?
     private var notifiedIds: Set<UUID> = []  // 已提醒过的，避免重复
+
+    // 尺寸档驱动:大 400×全高;小 300×半高(顶部对齐,从 menu bar 下沿向下)
+    private var panelW: CGFloat {
+        store.settings.sizeMode == .large ? 400 : 300
+    }
+    private func panelH(_ vf: CGRect) -> CGFloat {
+        store.settings.sizeMode == .large ? vf.height : vf.height / 2
+    }
+    /// 窗口左下角 y:统一从 vf 顶部往下 panelH。大档下等价 vf.origin.y,小档下窗口贴 menu bar 下沿
+    private func panelY(_ vf: CGRect) -> CGFloat {
+        vf.maxY - panelH(vf)
+    }
 
     /// 窗口所在屏幕（多屏安全：优先用窗口所在屏幕，回退到主屏幕）
     private var currentScreen: NSScreen {
@@ -45,6 +64,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                object: nil, queue: .main) { [weak self] _ in
             self?.adaptToCurrentScreen()
         }
+
+        // 监听尺寸档切换
+        NotificationCenter.default.addObserver(forName: .sizeModeChanged, object: nil, queue: .main) { [weak self] _ in
+            self?.applySizeMode()
+        }
+
+        // 启动时先展开一下再收起,让用户感知到"收缩"动作的存在
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            self?.expand()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
+                self?.collapse()
+            }
+        }
     }
 
     // MARK: - Window
@@ -52,10 +84,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func createWindow() {
         guard let screen = NSScreen.main else { return }
         let vf = screen.visibleFrame
+        let h = panelH(vf)
 
         window = PanelWindow(
-            contentRect: NSRect(x: 0, y: vf.origin.y, width: stripW, height: vf.height),
-            styleMask: [.borderless],
+            contentRect: NSRect(x: 0, y: panelY(vf), width: stripW, height: h),
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: false
         )
         window.level = .floating
@@ -64,36 +97,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.hasShadow = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.isMovableByWindowBackground = true  // 可拖拽
+        // 关键:panel 只在需要键盘输入(如 text field)时才变 key,普通鼠标点击直接 dispatch 到 contentView,
+        // 不被系统"激活窗口"流程截获——这是片段第一下点击能立即复制的根因开关。
+        // 参考:KeyboardCowboy / Strongbox / SpotMenu 等 sidebar/palette 类项目通用方案。
+        (window as? NSPanel)?.becomesKeyOnlyIfNeeded = true
 
-        let root = TrackingView(frame: NSRect(x: 0, y: 0, width: panelW, height: vf.height))
+        let root = TrackingView(frame: NSRect(x: 0, y: 0, width: panelW, height: h))
         root.wantsLayer = true
         root.layer?.masksToBounds = true
         root.onEnter = { [weak self] in self?.handleEnter() }
         root.onExit  = { [weak self] in self?.handleExit() }
 
         // ── Strip (1px bar + 2px handle) ──
-        stripView = NSView(frame: NSRect(x: 0, y: 0, width: stripW, height: vf.height))
+        stripView = NSView(frame: NSRect(x: 0, y: 0, width: stripW, height: h))
         stripView.wantsLayer = true
         let nsAccent = NSColor(store.settings.activeAccent)
         let nsDeep = NSColor(store.settings.activeAccentDeep)
         // 1px full-height bar
         let bar = CALayer()
         bar.backgroundColor = nsAccent.cgColor
-        bar.frame = CGRect(x: 0, y: 0, width: 1, height: vf.height)
+        bar.frame = CGRect(x: 0, y: 0, width: 1, height: h)
         stripView.layer?.addSublayer(bar)
+        stripBarLayer = bar
         // 2px deeper handle at center
         let handle = CALayer()
         handle.backgroundColor = nsDeep.cgColor
         handle.cornerRadius = 1
-        handle.frame = CGRect(x: 0, y: vf.height / 2 - 22, width: 5, height: 44)
+        handle.frame = CGRect(x: 0, y: h / 2 - 22, width: 5, height: 44)
         stripView.layer?.addSublayer(handle)
+        stripHandleLayer = handle
 
         // ── Panel container ──
-        panelContainer = NSView(frame: NSRect(x: 0, y: 0, width: panelW, height: vf.height))
+        panelContainer = NSView(frame: NSRect(x: 0, y: 0, width: panelW, height: h))
         panelContainer.wantsLayer = true
         panelContainer.autoresizingMask = [.width, .height]
         panelContainer.isHidden = true
-        updatePanelMask(height: vf.height)
+        updatePanelMask(height: h)
 
         let visual = NSVisualEffectView(frame: panelContainer.bounds)
         visual.material = .sidebar
@@ -102,16 +141,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         visual.autoresizingMask = [.width, .height]
         panelContainer.addSubview(visual)
 
-        let hosting = NSHostingView(rootView:
+        let hosting = FirstMouseHostingView(rootView:
             ContentView(store: store).environment(\.colorScheme, .light)
         )
         hosting.translatesAutoresizingMaskIntoConstraints = false
         panelContainer.addSubview(hosting)
+        let widthC = hosting.widthAnchor.constraint(equalToConstant: panelW)
+        hostingWidthConstraint = widthC
         NSLayoutConstraint.activate([
             hosting.topAnchor.constraint(equalTo: panelContainer.topAnchor),
             hosting.bottomAnchor.constraint(equalTo: panelContainer.bottomAnchor),
             hosting.leadingAnchor.constraint(equalTo: panelContainer.leadingAnchor),
-            hosting.widthAnchor.constraint(equalToConstant: panelW),
+            widthC,
         ])
 
         root.addSubview(panelContainer)
@@ -119,6 +160,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         window.contentView = root
         window.orderFront(nil)
+    }
+
+    /// 切换尺寸档后:更新约束 + window frame,panelContainer 通过 autoresizingMask 自动跟随,避免与手动 frame 冲突
+    private func applySizeMode() {
+        let vf = currentScreen.visibleFrame
+        let h = panelH(vf)
+        let w = panelW
+
+        // hosting 宽度约束立即更新,让 SwiftUI ContentView 用新宽度排版
+        hostingWidthConstraint?.constant = w
+
+        let x: CGFloat
+        let frameW: CGFloat = expanded ? w : stripW
+        if expanded {
+            x = dockedSide == .left ? vf.origin.x : vf.maxX - w
+        } else {
+            x = dockedSide == .left ? vf.origin.x : vf.maxX - stripW
+        }
+
+        // window setFrame 会触发 contentView (root) resize,panelContainer 因为 autoresizingMask 自动跟
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.2
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            window.animator().setFrame(NSRect(x: x, y: panelY(vf), width: frameW, height: h), display: true)
+        } completionHandler: { [weak self] in
+            // 动画完成后再更新 strip(没用 autoresize)和 mask,确保跟最终 frame 同步
+            self?.stripView.frame = NSRect(x: 0, y: 0, width: self?.stripW ?? 4, height: h)
+            self?.stripBarLayer?.frame = CGRect(x: 0, y: 0, width: 1, height: h)
+            self?.stripHandleLayer?.frame = CGRect(x: 0, y: h / 2 - 22, width: 5, height: 44)
+            self?.updatePanelMask(height: h)
+        }
     }
 
     /// 根据吸附侧更新圆角 mask（左贴→右圆角，右贴→左圆角）
@@ -157,33 +229,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 窗口拖到新屏幕后、或外接屏插拔时，重新适配窗口高度和位置
     private func adaptToCurrentScreen() {
         let vf = currentScreen.visibleFrame
+        let h = panelH(vf)
         let x: CGFloat
         if expanded {
             x = dockedSide == .left ? vf.origin.x : vf.maxX - panelW
         } else {
             x = dockedSide == .left ? vf.origin.x : vf.maxX - stripW
         }
-        let targetFrame = NSRect(x: x, y: vf.origin.y, width: expanded ? panelW : stripW, height: vf.height)
+        let targetFrame = NSRect(x: x, y: panelY(vf), width: expanded ? panelW : stripW, height: h)
         window.setFrame(targetFrame, display: true)
-        updatePanelMask(height: vf.height)
+        updatePanelMask(height: h)
     }
 
     // MARK: - Snap to nearest edge after drag
 
     private func snapToEdge() {
         let vf = currentScreen.visibleFrame
+        let h = panelH(vf)
         let mid = window.frame.origin.x + window.frame.width / 2
         let screenMid = vf.origin.x + vf.width / 2
 
         let newSide: Side = mid < screenMid ? .left : .right
         if newSide != dockedSide {
             dockedSide = newSide
-            updatePanelMask(height: vf.height)
+            updatePanelMask(height: h)
         }
 
         // 吸附到窗口所在屏幕的边缘，高度适配该屏幕
         let x: CGFloat = dockedSide == .left ? vf.origin.x : vf.maxX - (expanded ? panelW : stripW)
-        let targetFrame = NSRect(x: x, y: vf.origin.y, width: expanded ? panelW : stripW, height: vf.height)
+        let targetFrame = NSRect(x: x, y: panelY(vf), width: expanded ? panelW : stripW, height: h)
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.1
@@ -203,6 +277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelContainer.isHidden = false
 
         let vf = currentScreen.visibleFrame
+        let h = panelH(vf)
         let x: CGFloat = dockedSide == .left ? vf.origin.x : vf.maxX - panelW
 
         window.hasShadow = true
@@ -210,11 +285,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.12
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            window.animator().setFrame(NSRect(x: x, y: vf.origin.y, width: panelW, height: vf.height), display: true)
+            window.animator().setFrame(NSRect(x: x, y: panelY(vf), width: panelW, height: h), display: true)
         }
 
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             self?.collapse()
+        }
+
+        // 首次展开面板时触发新手引导
+        if !UserDefaults.standard.bool(forKey: "hasSeenOnboarding") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                NotificationCenter.default.post(name: .showOnboarding, object: nil)
+            }
         }
     }
 
@@ -370,9 +452,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// MARK: - PanelWindow (borderless 但可交互)
+// MARK: - PanelWindow (NSPanel + .nonactivatingPanel:浮动且第一下点击直接生效)
+// 关键:继承 NSPanel 才能用 .nonactivatingPanel styleMask,这样窗口接收 mouse 不需要先激活 app
 
-final class PanelWindow: NSWindow {
+final class PanelWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 }
@@ -394,4 +477,13 @@ final class TrackingView: NSView {
     }
     override func mouseEntered(with event: NSEvent) { onEnter?() }
     override func mouseExited(with event: NSEvent)  { onExit?() }
+    // 浮动 accessory app 窗口在 inactive 时,第一次 mouseDown 被系统用于"激活窗口"而吞掉。
+    // 返回 true 让第一下 mouseDown 直接传给 SwiftUI gesture,避免常用片段需要点两次。
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+// MARK: - FirstMouseHostingView (SwiftUI 容器,第一下点击即生效)
+
+final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
