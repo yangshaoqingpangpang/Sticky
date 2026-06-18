@@ -39,6 +39,13 @@ final class DataStore: ObservableObject {
             return
         }
         todos = s.todos; anniversaries = s.anniversaries; snippets = s.snippets; notes = s.notes ?? []; settings = s.settings
+        // 启动复位:卡在 searching 的、或 done 但结论为空的(无效结果),都回 idle 让定时器重试
+        for i in todos.indices {
+            let st = todos[i].aiSearchState
+            if st == .searching || (st == .done && (todos[i].aiConclusion ?? "").isEmpty) {
+                todos[i].aiSearchState = .idle
+            }
+        }
     }
 
     func save() {
@@ -286,5 +293,406 @@ final class DataStore: ObservableObject {
         settings = backup.settings
         save()
         return (true, "已导入 \(backup.todos.count) 条待办、\(backup.snippets.count) 条片段")
+    }
+
+    // MARK: - AI 连接测试
+
+    /// 用传入的凭证发一个最小请求验证可用性,不依赖已保存的 settings(便于"先测后存")
+    func testAIConnection(provider: AIProvider, baseURL: String, apiKey: String, model: String) async -> (ok: Bool, message: String) {
+        let base = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let mdl = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !base.isEmpty, !key.isEmpty, !mdl.isEmpty else {
+            return (false, "请先填写接口地址、API Key 和模型名")
+        }
+        let root = base.hasSuffix("/") ? String(base.dropLast()) : base
+
+        let path = provider.isAnthropic ? "/v1/messages" : "/chat/completions"
+        guard let url = URL(string: root + path) else {
+            return (false, "接口地址格式不正确")
+        }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 20
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any]
+        if provider.isAnthropic {
+            req.setValue(key, forHTTPHeaderField: "x-api-key")
+            req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+            body = ["model": mdl, "max_tokens": 1, "messages": [["role": "user", "content": "hi"]]]
+        } else {
+            req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            body = ["model": mdl, "max_tokens": 1, "messages": [["role": "user", "content": "hi"]]]
+        }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard let http = resp as? HTTPURLResponse else {
+                return (false, "无响应")
+            }
+            if (200...299).contains(http.statusCode) {
+                return (true, "连接成功，模型 \(mdl) 可用")
+            }
+            // 把后端错误转成可读提示,不直接抛原始 JSON 给用户
+            let detail = Self.parseAPIError(data) ?? "HTTP \(http.statusCode)"
+            switch http.statusCode {
+            case 401, 403: return (false, "鉴权失败，请检查 API Key（\(detail)）")
+            case 404:      return (false, "接口地址或模型名不正确（\(detail)）")
+            case 429:      return (false, "请求过于频繁或额度不足（\(detail)）")
+            default:       return (false, "连接失败：\(detail)")
+            }
+        } catch {
+            return (false, "网络错误：\(error.localizedDescription)")
+        }
+    }
+
+    /// 从供应商错误响应里抠出 message 字段(OpenAI/Anthropic 通用结构)
+    private static func parseAPIError(_ data: Data) -> String? {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        if let err = obj["error"] as? [String: Any], let msg = err["message"] as? String { return msg }
+        if let msg = obj["message"] as? String { return msg }
+        return nil
+    }
+
+    // MARK: - AI 凭证就绪判断
+
+    var aiConfigured: Bool {
+        let s = settings
+        return !(s.aiAPIKey ?? "").isEmpty && !(s.aiBaseURL ?? "").isEmpty && !(s.aiModelName ?? "").isEmpty
+    }
+
+    // MARK: - AI 调用底座
+
+    private func aiEndpoint() -> (url: URL, anthropic: Bool, key: String, model: String)? {
+        let s = settings
+        guard aiConfigured, let base0 = s.aiBaseURL, let key = s.aiAPIKey, let model = s.aiModelName else { return nil }
+        let provider = s.aiProvider
+        let base = base0.trimmingCharacters(in: .whitespacesAndNewlines)
+        let root = base.hasSuffix("/") ? String(base.dropLast()) : base
+        let path = provider.isAnthropic ? "/v1/messages" : "/chat/completions"
+        guard let url = URL(string: root + path) else { return nil }
+        return (url, provider.isAnthropic, key.trimmingCharacters(in: .whitespacesAndNewlines), model.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private func buildRequest(_ ep: (url: URL, anthropic: Bool, key: String, model: String), body: [String: Any]) -> URLRequest {
+        var req = URLRequest(url: ep.url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 45
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if ep.anthropic {
+            req.setValue(ep.key, forHTTPHeaderField: "x-api-key")
+            req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        } else {
+            req.setValue("Bearer \(ep.key)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        return req
+    }
+
+    /// 解析返回正文(OpenAI choices / Anthropic content 两种结构)
+    private static func extractContent(_ data: Data, anthropic: Bool) -> String? {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        if anthropic {
+            if let content = obj["content"] as? [[String: Any]] {
+                return content.compactMap { $0["text"] as? String }.joined()
+            }
+        } else {
+            if let choices = obj["choices"] as? [[String: Any]],
+               let msg = choices.first?["message"] as? [String: Any],
+               let content = msg["content"] as? String {
+                return content
+            }
+        }
+        return nil
+    }
+
+    /// 纯文本对话(检索用),返回正文或 nil
+    private func aiChatText(system: String, user: String, maxTokens: Int) async -> String? {
+        guard let ep = aiEndpoint() else {
+            applog("✗ aiChatText: endpoint 构建失败(配置不全或 URL 非法)")
+            return nil
+        }
+        applog("→ 请求 \(ep.url.absoluteString) model=\(ep.model)")
+        let messages: [[String: Any]] = [
+            ["role": "system", "content": system],
+            ["role": "user", "content": user],
+        ]
+        let req = buildRequest(ep, body: ["model": ep.model, "max_tokens": maxTokens, "messages": messages])
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard let http = resp as? HTTPURLResponse else {
+                applog("✗ 无 HTTP 响应")
+                return nil
+            }
+            guard (200...299).contains(http.statusCode) else {
+                let detail = Self.parseAPIError(data) ?? "HTTP \(http.statusCode)"
+                applog("✗ HTTP \(http.statusCode): \(detail)")
+                return nil
+            }
+            guard let content = Self.extractContent(data, anthropic: ep.anthropic) else {
+                applog("✗ HTTP 200 但解析正文失败")
+                return nil
+            }
+            applog("✓ HTTP 200,正文 \(content.count) 字")
+            return content
+        } catch {
+            applog("✗ 网络错误: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    // MARK: - 功能1:截图视觉提取待办
+
+    enum ExtractResult {
+        case success([(text: String, deadline: Date?)])
+        case visionUnsupported   // 模型不支持视觉 / 接口报错
+        case network(String)
+    }
+
+    /// 把截图送进视觉模型,提取待办事项+时间
+    func extractTodosFromImage(_ image: NSImage) async -> ExtractResult {
+        guard let ep = aiEndpoint(), let b64 = Self.jpegBase64(image) else {
+            return .visionUnsupported
+        }
+        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd HH:mm EEEE"; df.locale = Locale(identifier: "zh_CN")
+        let today = df.string(from: Date())
+        let prompt = """
+        今天是 \(today)。请从这张图片中提取所有待办事项及其截止时间，以 JSON 数组返回，每个元素格式：{"text":"待办内容","deadline":"yyyy-MM-dd HH:mm" 或 null}。只输出 JSON，不要解释，不要使用 markdown 代码块。
+        """
+
+        let body: [String: Any]
+        if ep.anthropic {
+            body = ["model": ep.model, "max_tokens": 1024, "messages": [[
+                "role": "user",
+                "content": [
+                    ["type": "text", "text": prompt],
+                    ["type": "image", "source": ["type": "base64", "media_type": "image/jpeg", "data": b64]],
+                ],
+            ]]]
+        } else {
+            body = ["model": ep.model, "max_tokens": 1024, "messages": [[
+                "role": "user",
+                "content": [
+                    ["type": "text", "text": prompt],
+                    ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64,\(b64)"]],
+                ],
+            ]]]
+        }
+        let req = buildRequest(ep, body: body)
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard let http = resp as? HTTPURLResponse else { return .network("无响应") }
+            guard (200...299).contains(http.statusCode) else {
+                return .visionUnsupported   // 多为模型不支持图片输入
+            }
+            guard let content = Self.extractContent(data, anthropic: ep.anthropic) else {
+                return .visionUnsupported
+            }
+            return .success(Self.parseExtractedTodos(content))
+        } catch {
+            return .network(error.localizedDescription)
+        }
+    }
+
+    /// 解析模型返回的 JSON 待办数组(容忍 markdown 代码块包裹)
+    private static func parseExtractedTodos(_ raw: String) -> [(text: String, deadline: Date?)] {
+        var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let r = s.range(of: "```") {
+            s = String(s[r.upperBound...])
+            if s.hasPrefix("json") { s = String(s.dropFirst(4)) }
+            if let end = s.range(of: "```") { s = String(s[..<end.lowerBound]) }
+        }
+        s = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = s.data(using: .utf8),
+              let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd HH:mm"; df.locale = Locale(identifier: "zh_CN")
+        return arr.compactMap { item in
+            guard let text = (item["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+            var dl: Date? = nil
+            if let ds = item["deadline"] as? String, !ds.isEmpty, ds.lowercased() != "null" {
+                dl = df.date(from: ds)
+            }
+            return (text, dl)
+        }
+    }
+
+    /// NSImage → JPEG base64(限制最长边以控制请求体积)
+    private static func jpegBase64(_ image: NSImage, maxDim: CGFloat = 1280) -> String? {
+        guard let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return nil }
+        let w = CGFloat(rep.pixelsWide), h = CGFloat(rep.pixelsHigh)
+        let scale = min(1, maxDim / max(w, h))
+        let tw = Int(w * scale), th = Int(h * scale)
+        guard tw > 0, th > 0,
+              let resized = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: tw, pixelsHigh: th,
+                                             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                             colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: resized)
+        rep.draw(in: NSRect(x: 0, y: 0, width: tw, height: th))
+        NSGraphicsContext.restoreGraphicsState()
+        guard let jpeg = resized.representation(using: .jpeg, properties: [.compressionFactor: 0.7]) else { return nil }
+        return jpeg.base64EncodedString()
+    }
+
+    /// 截图入口编排:配了模型走视觉提取生成待办;没配则放图+兜底文案
+    func addTodosFromScreenshot(_ image: NSImage) async {
+        guard aiConfigured else {
+            await MainActor.run {
+                self.addTodo(text: "自动创建待办，如果您配置了大模型，我会自动为您提取待办事项和时间。", color: .red, images: [image])
+            }
+            return
+        }
+        let result = await extractTodosFromImage(image)
+        await MainActor.run {
+            switch result {
+            case .success(let items) where !items.isEmpty:
+                for (idx, item) in items.enumerated() {
+                    self.addTodo(text: item.text, color: .red, images: idx == 0 ? [image] : [], deadline: item.deadline)
+                }
+            case .success:
+                self.addTodo(text: "未从截图中识别到待办，请手动编辑。", color: .red, images: [image])
+            case .visionUnsupported:
+                self.addTodo(text: "您配置的模型不支持视觉，提取信息失败。", color: .red, images: [image])
+            case .network(let msg):
+                self.addTodo(text: "网络错误，提取失败：\(msg)", color: .red, images: [image])
+            }
+        }
+    }
+
+    // MARK: - 功能2:AI 帮手检索(每分钟批量,自身知识作答)
+
+    /// 每批最多挑 limit 条:未完成 + 状态 idle(未检索/未在检索/无结果)
+    func runAISearchBatch(limit: Int = 3) {
+        guard aiConfigured else {
+            applog("批次跳过: 未配置大模型(URL/Key/模型名 有空)")
+            return
+        }
+        let s = settings
+        applog("配置: \(s.aiProvider.label) | \(s.aiBaseURL ?? "?") | \(s.aiModelName ?? "?")")
+        // 状态分布诊断
+        let undone = todos.filter { !$0.isDone }
+        let cIdle = undone.filter { $0.aiSearchState == .idle }.count
+        let cSearching = undone.filter { $0.aiSearchState == .searching }.count
+        let cDone = undone.filter { $0.aiSearchState == .done }.count
+        let cDoneEmpty = undone.filter { $0.aiSearchState == .done && ($0.aiConclusion ?? "").isEmpty }.count
+        let cFailed = undone.filter { $0.aiSearchState == .failed }.count
+        let cSkipped = undone.filter { $0.aiSearchState == .skipped }.count
+        let cDismissed = undone.filter { $0.aiSearchState == .dismissed }.count
+        applog("状态: 未完成\(undone.count) | idle\(cIdle) searching\(cSearching) done\(cDone)(空\(cDoneEmpty)) failed\(cFailed) 私域\(cSkipped) 不采纳\(cDismissed)")
+
+        // idle(从未检索)和 failed(上次失败)都需要触发;done/searching 跳过(满足不重复触发)
+        let needsSearch: (Todo) -> Bool = { !$0.isDone && ($0.aiSearchState == .idle || $0.aiSearchState == .failed) }
+        let pending = todos.filter(needsSearch).prefix(limit)
+        applog("本批取 \(pending.count) 条")
+        for t in pending { startAISearch(t.id) }
+    }
+
+    /// 触发单条检索。force=true 时跳过分类直接深度调研(用户手动点灰图标强制检索,可覆盖 skipped 误判)
+    func startAISearch(_ id: UUID, force: Bool = false) {
+        guard aiConfigured, let i = todos.firstIndex(where: { $0.id == id }) else { return }
+        let st = todos[i].aiSearchState
+        // 自动触发只认 idle/failed;force 还能从 skipped/dismissed 强制拉起
+        guard force || st == .idle || st == .failed else { return }
+        guard st != .searching else { return }
+        todos[i].aiSearchState = .searching
+        save()
+        let text = todos[i].text
+        applog("\(force ? "强制" : "")开始检索: \(text.prefix(20))")
+        Task {
+            let outcome = await searchTodoLLM(text, force: force)
+            await MainActor.run {
+                guard let j = self.todos.firstIndex(where: { $0.id == id }) else { return }
+                switch outcome {
+                case .research(let conclusion, let source):
+                    self.todos[j].aiConclusion = conclusion
+                    self.todos[j].aiSource = source
+                    self.todos[j].aiSearchState = .done
+                    applog("完成(调研): \(text.prefix(12)) → \(conclusion.prefix(20))")
+                case .skip:
+                    self.todos[j].aiConclusion = nil
+                    self.todos[j].aiSource = nil
+                    self.todos[j].aiSearchState = .skipped
+                    applog("跳过(私域): \(text.prefix(20))")
+                case .failed:
+                    self.todos[j].aiSearchState = .failed
+                    applog("失败: \(text.prefix(20))")
+                }
+                self.save()
+            }
+        }
+    }
+
+    /// 不采纳:清掉结果,标为 dismissed(终态,批次不再捡,UI 不再显示)
+    func dismissAISearch(_ id: UUID) {
+        guard let i = todos.firstIndex(where: { $0.id == id }) else { return }
+        applog("不采纳: \(todos[i].text.prefix(20))")
+        todos[i].aiConclusion = nil
+        todos[i].aiSource = nil
+        todos[i].aiSearchState = .dismissed
+        save()
+    }
+
+    private enum SearchOutcome { case research(conclusion: String, source: String), skip, failed }
+
+    /// 默认检索提示词(自动模式)。{{todo}} 会被替换成待办内容。用户可在设置里改写。
+    static let defaultSearchPrompt = """
+    判断下面这条待办：
+    - 仅当它是纯私人生活事务（买东西、吃饭、个人提醒、约朋友）或含账号密钥等敏感信息时，回复一个词：SKIP
+    - 只要涉及工作、项目、技术、产品、公司、品牌、行业、市场、方案、调研等（即使没有明确的搜索词，也尽量抓取相关产品/公司介绍等公开资料），都给出有数据支撑的结论和参考来源，严格按格式：
+    结论：<带数据的结论>
+    来源：<参考来源>
+
+    待办：{{todo}}
+    """
+
+    private func searchTodoLLM(_ text: String, force: Bool = false) async -> SearchOutcome {
+        let system = "你是待办助手,用你已有的知识帮用户做调研,给出有数据支撑的结论。"
+        let user: String
+        if force {
+            // 强制模式:不分类,直接深度调研
+            user = """
+            针对下面这条待办，用你已有的知识给出有数据支撑的结论和参考来源，严格按格式：
+            结论：<带数据的结论>
+            来源：<参考来源>
+
+            待办：\(text)
+            """
+        } else {
+            // 自动模式:用用户自定义提示词(没填则用默认),替换 {{todo}}
+            var template = (settings.aiSearchPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 } ?? Self.defaultSearchPrompt
+            if template.contains("{{todo}}") {
+                template = template.replacingOccurrences(of: "{{todo}}", with: text)
+            } else {
+                template += "\n\n待办：\(text)"
+            }
+            user = template
+        }
+        guard let raw = await aiChatText(system: system, user: user, maxTokens: 600) else { return .failed }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !force && trimmed.uppercased().hasPrefix("SKIP") {
+            return .skip
+        }
+        let r = Self.parseConclusionSource(raw)
+        return .research(conclusion: r.conclusion, source: r.source)
+    }
+
+    private static func parseConclusionSource(_ raw: String) -> (conclusion: String, source: String) {
+        var conclusion = "", source = ""
+        for line in raw.split(separator: "\n", omittingEmptySubsequences: true) {
+            let l = line.trimmingCharacters(in: .whitespaces)
+            if let r = l.range(of: "结论：") ?? l.range(of: "结论:") {
+                conclusion = String(l[r.upperBound...]).trimmingCharacters(in: .whitespaces)
+            } else if let r = l.range(of: "来源：") ?? l.range(of: "来源:") {
+                source = String(l[r.upperBound...]).trimmingCharacters(in: .whitespaces)
+            }
+        }
+        // 模型没按格式时,整段当结论
+        if conclusion.isEmpty && source.isEmpty {
+            conclusion = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return (conclusion, source)
     }
 }

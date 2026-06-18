@@ -4,6 +4,7 @@ import AppKit
 extension Notification.Name {
     static let showOnboarding = Notification.Name("showOnboarding")
     static let sizeModeChanged = Notification.Name("sizeModeChanged")
+    static let demoNav = Notification.Name("demoNav")   // demo 截图模式:全局快捷键切页
 }
 
 @main
@@ -19,6 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = DataStore()
 
     private let stripW: CGFloat = 4
+    // demo 截图模式:面板钉住不收起 + ⌃1..⌃6 切页(环境变量 STICKY_DEMO=1 开启,正常使用不受影响)
+    private let demoMode = ProcessInfo.processInfo.environment["STICKY_DEMO"] == "1"
     private(set) var expanded = false
     private var collapseTimer: Timer?
     private var clickMonitor: Any?
@@ -32,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var stripBarLayer: CALayer?
     private var stripHandleLayer: CALayer?
     private var deadlineTimer: Timer?
+    private var aiSearchTimer: Timer?
     private var notifiedIds: Set<UUID> = []  // 已提醒过的，避免重复
 
     // 尺寸档驱动:大 400×全高;小 300×半高(顶部对齐,从 menu bar 下沿向下)
@@ -58,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         createStatusItem()
         registerShortcut()
         startDeadlineChecker()
+        startAISearchTimer()
 
         // 监听屏幕配置变化（插拔外接屏、分辨率改变）
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
@@ -70,11 +75,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.applySizeMode()
         }
 
-        // 启动时先展开一下再收起,让用户感知到"收缩"动作的存在
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-            self?.expand()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
-                self?.collapse()
+        if demoMode {
+            // 截图模式:直接钉开,不做启动收缩动画
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.expand() }
+        } else {
+            // 启动时先展开一下再收起,让用户感知到"收缩"动作的存在
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                self?.expand()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
+                    self?.collapse()
+                }
             }
         }
     }
@@ -301,6 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func collapse() {
+        if demoMode { return }   // 截图模式钉住不收
         guard expanded else { return }
         expanded = false
         collapseTimer?.invalidate()
@@ -337,7 +348,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             ScreenCaptureManager.shared.start { [weak self] image in
                 guard let self else { return }
-                self.store.addTodo(text: "截图", color: .red, images: [image])
+                // 配了大模型走视觉提取(异步),否则放图+兜底文案
+                Task { [weak self] in
+                    await self?.store.addTodosFromScreenshot(image)
+                }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.expand()
                 }
@@ -387,6 +401,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.async { self.startScreenCapture() }
                 return true
             }
+            // demo 截图模式:⌃1..⌃6 切页
+            if self.demoMode {
+                let map: [String: String] = ["⌃1": "todos", "⌃2": "notes", "⌃3": "settings", "⌃4": "newTodo", "⌃5": "log", "⌃6": "small", "⌃7": "large"]
+                if let target = map[combo] {
+                    DispatchQueue.main.async { NotificationCenter.default.post(name: .demoNav, object: target) }
+                    return true
+                }
+            }
             // Esc
             if e.keyCode == 53 {
                 DispatchQueue.main.async { self.collapse() }
@@ -427,6 +449,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.checkDeadlines() }
         deadlineTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             DispatchQueue.main.async { self?.checkDeadlines() }
+        }
+    }
+
+    /// 每分钟触发一次 AI 帮手检索批次(每批最多 3 条未完成未检索的待办)
+    private func startAISearchTimer() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.store.runAISearchBatch() }
+        aiSearchTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            DispatchQueue.main.async { self?.store.runAISearchBatch() }
         }
     }
 

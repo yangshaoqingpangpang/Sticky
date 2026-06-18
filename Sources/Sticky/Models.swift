@@ -2,6 +2,12 @@ import SwiftUI
 
 // MARK: - Todo
 
+enum AISearchState: String, Codable {
+    case idle, searching, done, failed
+    case skipped     // 私域/个人事务,模型判定无需建议
+    case dismissed   // 用户主动不采纳,不再显示也不再检索
+}
+
 struct Todo: Identifiable, Codable {
     var id = UUID()
     var text: String
@@ -12,6 +18,15 @@ struct Todo: Identifiable, Codable {
     var completedAt: Date?
     var deadline: Date?
     var isSuperDeadline = false
+    // AI 帮手检索结果
+    var aiConclusion: String?
+    var aiSource: String?
+    var aiSearchStateRaw: String?
+
+    var aiSearchState: AISearchState {
+        get { AISearchState(rawValue: aiSearchStateRaw ?? "") ?? .idle }
+        set { aiSearchStateRaw = newValue.rawValue }
+    }
 
     init(text: String, color: TodoColor = .red, imageNames: [String] = [], isDone: Bool = false,
          createdAt: Date = Date(), completedAt: Date? = nil, deadline: Date? = nil, isSuperDeadline: Bool = false) {
@@ -30,6 +45,9 @@ struct Todo: Identifiable, Codable {
         completedAt = try c.decodeIfPresent(Date.self, forKey: .completedAt)
         deadline = try c.decodeIfPresent(Date.self, forKey: .deadline)
         isSuperDeadline = try c.decodeIfPresent(Bool.self, forKey: .isSuperDeadline) ?? false
+        aiConclusion = try c.decodeIfPresent(String.self, forKey: .aiConclusion)
+        aiSource = try c.decodeIfPresent(String.self, forKey: .aiSource)
+        aiSearchStateRaw = try c.decodeIfPresent(String.self, forKey: .aiSearchStateRaw)
     }
 }
 
@@ -99,10 +117,62 @@ struct AppSettings: Codable {
     var useCustomColor: Bool = false
     // 窗口尺寸档:大(默认) / 小. 用 raw 形式存以兼容旧 data.json
     var sizeModeRaw: String?
+    // AI 配置:供应商 / 接口地址 / 密钥 / 模型名. 全 optional 兼容旧 data.json
+    var aiProviderRaw: String?
+    var aiBaseURL: String?
+    var aiAPIKey: String?
+    var aiModelName: String?
+    var aiSearchPrompt: String?   // AI 帮手检索提示词(自定义,nil=用默认)
 }
 
 enum SizeMode: String, Codable, CaseIterable {
     case large, small
+}
+
+// MARK: - AI Provider
+
+enum AIProvider: String, Codable, CaseIterable {
+    case deepseek, zhipu, qwen, moonshot, openai, claude, custom
+
+    var label: String {
+        switch self {
+        case .deepseek: return "DeepSeek"
+        case .zhipu:    return "智谱 GLM"
+        case .qwen:     return "通义千问"
+        case .moonshot: return "Moonshot Kimi"
+        case .openai:   return "OpenAI"
+        case .claude:   return "Claude"
+        case .custom:   return "自定义"
+        }
+    }
+
+    /// 默认接口地址(base url,不含具体 path)
+    var defaultBaseURL: String {
+        switch self {
+        case .deepseek: return "https://api.deepseek.com"
+        case .zhipu:    return "https://open.bigmodel.cn/api/paas/v4"
+        case .qwen:     return "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        case .moonshot: return "https://api.moonshot.cn/v1"
+        case .openai:   return "https://api.openai.com/v1"
+        case .claude:   return "https://api.anthropic.com"
+        case .custom:   return ""
+        }
+    }
+
+    var defaultModel: String {
+        switch self {
+        case .deepseek: return "deepseek-chat"
+        case .zhipu:    return "glm-4"
+        case .qwen:     return "qwen-plus"
+        case .moonshot: return "moonshot-v1-8k"
+        case .openai:   return "gpt-4o"
+        case .claude:   return "claude-3-5-sonnet-20241022"
+        case .custom:   return ""
+        }
+    }
+
+    /// Anthropic 用独立的 /v1/messages 协议;其余走 OpenAI 兼容 /chat/completions
+    var isAnthropic: Bool { self == .claude }
 }
 
 extension AppSettings {
@@ -115,6 +185,12 @@ extension AppSettings {
     var sizeMode: SizeMode {
         get { SizeMode(rawValue: sizeModeRaw ?? "") ?? .large }
         set { sizeModeRaw = newValue.rawValue }
+    }
+
+    /// AI 供应商
+    var aiProvider: AIProvider {
+        get { AIProvider(rawValue: aiProviderRaw ?? "") ?? .deepseek }
+        set { aiProviderRaw = newValue.rawValue }
     }
 
     /// 当前生效的主色

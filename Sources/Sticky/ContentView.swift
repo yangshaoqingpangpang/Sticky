@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var activeTab: MainTab = .todos
     @State private var searchText = ""
     @State private var showNewTodo = false
+    @State private var showLog = false
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     @State private var onboardingStep: Int? = nil
 
@@ -34,9 +35,14 @@ struct ContentView: View {
             if showNewTodo {
                 NewTodoOverlay(store: store, isPresented: $showNewTodo).transition(.opacity)
             }
+            if showLog {
+                LogPanel(onClose: { withAnimation { showLog = false } })
+                    .transition(.move(edge: .bottom))
+            }
         }
         .animation(.spring(response: 0.35), value: page)
         .animation(.easeOut(duration: 0.2), value: showNewTodo)
+        .animation(.easeOut(duration: 0.2), value: showLog)
         .overlayPreferenceValue(OnboardingAnchorKey.self) { anchors in
             if let stepIdx = onboardingStep {
                 GeometryReader { proxy in
@@ -52,6 +58,20 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .showOnboarding)) { _ in
             guard !hasSeenOnboarding, onboardingStep == nil else { return }
             onboardingStep = 0
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .demoNav)) { note in
+            guard let target = note.object as? String else { return }
+            showNewTodo = false; showLog = false
+            switch target {
+            case "todos":    page = .main; activeTab = .todos
+            case "notes":    page = .main; activeTab = .notes
+            case "settings": page = .settings
+            case "newTodo":  page = .main; showNewTodo = true
+            case "log":      showLog = true
+            case "small":    store.settings.sizeMode = .small; store.save(); NotificationCenter.default.post(name: .sizeModeChanged, object: nil)
+            case "large":    store.settings.sizeMode = .large; store.save(); NotificationCenter.default.post(name: .sizeModeChanged, object: nil)
+            default: break
+            }
         }
     }
 
@@ -115,9 +135,11 @@ struct ContentView: View {
             .frame(height: 24)
             .padding(.top, 14)
 
-            // Header (日期行点击 → 进入设置页)
+            // Header (日期行点击 → 进入设置页;时间连点 5 次 → 隐藏日志)
             HeaderView(store: store, onSettings: {
                 withAnimation { page = .settings }
+            }, onShowLog: {
+                withAnimation { showLog = true }
             })
 
             // Separator

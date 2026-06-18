@@ -3,7 +3,10 @@ import SwiftUI
 struct HeaderView: View {
     @ObservedObject var store: DataStore
     var onSettings: () -> Void = {}
+    var onShowLog: () -> Void = {}
     @State private var now = Date()
+    @State private var timeTapCount = 0
+    @State private var timeTapResetWork: DispatchWorkItem?
     private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -14,6 +17,8 @@ struct HeaderView: View {
                 .monospacedDigit()
                 .tracking(-1.5)
                 .foregroundColor(Color(white: 0.13))
+                .contentShape(Rectangle())
+                .onTapGesture { handleTimeTap() }
 
             // Date row — 整行点击进入设置页(与右上角齿轮等价的快捷入口)
             HStack(alignment: .firstTextBaseline, spacing: 0) {
@@ -62,6 +67,20 @@ struct HeaderView: View {
         }
         .padding(.horizontal, 22).padding(.bottom, 16)
         .onReceive(timer) { now = $0 }
+    }
+
+    /// 连续点击时间 5 次(每次间隔 <1.2s)触发隐藏日志面板
+    private func handleTimeTap() {
+        timeTapCount += 1
+        timeTapResetWork?.cancel()
+        if timeTapCount >= 5 {
+            timeTapCount = 0
+            onShowLog()
+            return
+        }
+        let work = DispatchWorkItem { timeTapCount = 0 }
+        timeTapResetWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
     }
 
     private var timeStr: String {

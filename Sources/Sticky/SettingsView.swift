@@ -7,6 +7,17 @@ struct SettingsView: View {
     @State private var colorPanelObserver: Any?
     @State private var backupAlert: String?
 
+    // AI 配置本地编辑态(onAppear 从 settings 载入,保存时写回)
+    @State private var aiProvider: AIProvider = .deepseek
+    @State private var aiModel = ""
+    @State private var aiURL = ""
+    @State private var aiKey = ""
+    @State private var aiPrompt = ""
+    @State private var aiPromptExpanded = false
+    @State private var aiLoaded = false
+    @State private var aiTesting = false
+    @State private var aiStatus: (ok: Bool, text: String)?
+
     var body: some View {
         VStack(spacing: 0) {
             settingsHeader
@@ -20,6 +31,8 @@ struct SettingsView: View {
                     // 纪念日日历直接嵌入
                     sectionLabel("纪念日").padding(.bottom, 6)
                     EmbeddedCalendar(store: store)
+                    sectionDivider
+                    aiSection
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 6)
@@ -27,6 +40,7 @@ struct SettingsView: View {
             }
         }
         .background(.background)
+        .onAppear(perform: loadAIConfig)
         .alert("数据备份", isPresented: Binding(get: { backupAlert != nil }, set: { if !$0 { backupAlert = nil } })) {
             Button("好的", role: .cancel) { backupAlert = nil }
         } message: {
@@ -74,6 +88,153 @@ struct SettingsView: View {
 
     private var sectionDivider: some View {
         Rectangle().fill(Color(white: 0.9)).frame(height: 0.5).padding(.vertical, 16)
+    }
+
+    // MARK: - AI 配置
+
+    private func loadAIConfig() {
+        guard !aiLoaded else { return }
+        aiLoaded = true
+        let s = store.settings
+        aiProvider = s.aiProvider
+        aiModel = s.aiModelName ?? s.aiProvider.defaultModel
+        aiURL = s.aiBaseURL ?? s.aiProvider.defaultBaseURL
+        aiKey = s.aiAPIKey ?? ""
+        aiPrompt = s.aiSearchPrompt ?? DataStore.defaultSearchPrompt
+    }
+
+    /// 切换供应商:用该供应商默认值覆盖 URL/模型名(自定义除外,保留用户已填内容)
+    private func onProviderChange(_ p: AIProvider) {
+        aiProvider = p
+        aiStatus = nil
+        if p != .custom {
+            aiURL = p.defaultBaseURL
+            aiModel = p.defaultModel
+        }
+    }
+
+    private func saveAIConfig() {
+        store.settings.aiProvider = aiProvider
+        store.settings.aiBaseURL = aiURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        store.settings.aiModelName = aiModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        store.settings.aiAPIKey = aiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let p = aiPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        store.settings.aiSearchPrompt = (p.isEmpty || p == DataStore.defaultSearchPrompt) ? nil : p
+        store.save()
+        aiStatus = (true, "已保存")
+    }
+
+    private var aiSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("AI 配置")
+            Text("配置大模型供应商、接口地址与 API Key，保存后作为调用大模型的凭证。")
+                .font(.system(size: 10.5)).foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // 供应商下拉
+            HStack(spacing: 8) {
+                Text("大模型").font(.system(size: 12, weight: .medium)).foregroundColor(.secondary).frame(width: 56, alignment: .leading)
+                Picker("", selection: Binding(get: { aiProvider }, set: { onProviderChange($0) })) {
+                    ForEach(AIProvider.allCases, id: \.self) { p in
+                        Text(p.label).tag(p)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            aiField(label: "模型名", text: $aiModel, placeholder: "如 deepseek-chat")
+            aiField(label: "接口地址", text: $aiURL, placeholder: "https://…")
+            aiSecureField(label: "API Key", text: $aiKey, placeholder: "sk-…")
+
+            // 检索提示词(可折叠,默认收起)
+            HStack(spacing: 4) {
+                Text("检索提示词").font(.system(size: 12, weight: .medium)).foregroundColor(.secondary)
+                Image(systemName: aiPromptExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 9, weight: .semibold)).foregroundColor(.secondary)
+                Spacer()
+                if aiPromptExpanded {
+                    Button("恢复默认") { aiPrompt = DataStore.defaultSearchPrompt }
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(store.settings.activeAccentDeep)
+                        .buttonStyle(.plain)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { withAnimation(.easeOut(duration: 0.18)) { aiPromptExpanded.toggle() } }
+
+            if aiPromptExpanded {
+                Text("用 {{todo}} 代表待办内容").font(.system(size: 9.5)).foregroundStyle(.tertiary)
+                TextEditor(text: $aiPrompt)
+                    .font(.system(size: 11))
+                    .frame(height: 120)
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color(white: 0.97)))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(white: 0.88), lineWidth: 0.5))
+                    .scrollContentBackground(.hidden)
+            }
+
+            HStack(spacing: 10) {
+                Button { saveAIConfig() } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "checkmark.circle").font(.system(size: 11, weight: .medium))
+                        Text("保存").font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(store.settings.activeAccentDeep)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(store.settings.activeAccent.opacity(0.1))
+                    .cornerRadius(8)
+                }.buttonStyle(.plain)
+
+                Button {
+                    aiTesting = true; aiStatus = nil
+                    let p = aiProvider, u = aiURL, k = aiKey, m = aiModel
+                    Task {
+                        let r = await store.testAIConnection(provider: p, baseURL: u, apiKey: k, model: m)
+                        await MainActor.run { aiStatus = (r.ok, r.message); aiTesting = false }
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        if aiTesting {
+                            ProgressView().controlSize(.small).scaleEffect(0.7).frame(width: 11, height: 11)
+                        } else {
+                            Image(systemName: "bolt.horizontal.circle").font(.system(size: 11, weight: .medium))
+                        }
+                        Text(aiTesting ? "测试中…" : "测试连接").font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(Color(white: 0.4))
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Color(white: 0.95))
+                    .cornerRadius(8)
+                }.buttonStyle(.plain).disabled(aiTesting)
+            }
+
+            if let s = aiStatus {
+                HStack(spacing: 5) {
+                    Image(systemName: s.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                    Text(s.text).font(.system(size: 10.5))
+                }
+                .foregroundColor(s.ok ? Color.green.opacity(0.85) : Color.orange)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func aiField(label: String, text: Binding<String>, placeholder: String) -> some View {
+        HStack(spacing: 8) {
+            Text(label).font(.system(size: 12, weight: .medium)).foregroundColor(.secondary).frame(width: 56, alignment: .leading)
+            TextField(placeholder, text: text)
+                .textFieldStyle(.roundedBorder).font(.system(size: 12))
+        }
+    }
+
+    private func aiSecureField(label: String, text: Binding<String>, placeholder: String) -> some View {
+        HStack(spacing: 8) {
+            Text(label).font(.system(size: 12, weight: .medium)).foregroundColor(.secondary).frame(width: 56, alignment: .leading)
+            SecureField(placeholder, text: text)
+                .textFieldStyle(.roundedBorder).font(.system(size: 12))
+        }
     }
 
     private var settingsHeader: some View {
@@ -160,8 +321,9 @@ struct SettingsView: View {
         }
     }
 
+    // 一级:section 标题(放大加深,与二级字段标签拉开层级)
     private func sectionLabel(_ text: String) -> some View {
-        Text(text).font(.system(size: 12, weight: .semibold)).tracking(0.8).foregroundColor(.secondary)
+        Text(text).font(.system(size: 15, weight: .semibold)).foregroundColor(Color(white: 0.13))
     }
 }
 

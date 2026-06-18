@@ -57,6 +57,7 @@ struct TodoRow: View {
     @State private var isHovered = false
     @State private var shakeOffset: CGFloat = 0
     @State private var slideOpen = false
+    @State private var aiExpanded = false
     @State private var editing = false
     @State private var editText = ""
     @State private var editDayIndex: Int? = nil
@@ -64,10 +65,78 @@ struct TodoRow: View {
     @State private var editMinute: Int = 0
 
     private var overdue: Bool { store.isOverdue(todo) }
+    private var aiResultReady: Bool { todo.aiSearchState == .done && (todo.aiConclusion?.isEmpty == false) }
 
     // 方案 A：死线条目 = 左侧细红竖条（之前的亮红）+ 浅暖底
     private let deadlineRed = Color.red
     private let deadlineBG = Color(red: 0.96, green: 0.92, blue: 0.88)
+
+    // AI 帮手展开区:结论 / 来源
+    @ViewBuilder private var aiResultView: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            switch todo.aiSearchState {
+            case .searching:
+                HStack(spacing: 5) {
+                    ProgressView().controlSize(.small).scaleEffect(0.6).frame(width: 10, height: 10)
+                    Text("AI 检索中…").font(.system(size: 10.5)).foregroundColor(.secondary)
+                }
+            case .done:
+                if let c = todo.aiConclusion, !c.isEmpty {
+                    aiResultLine(label: "结论", text: c)
+                }
+                if let s = todo.aiSource, !s.isEmpty {
+                    aiResultLine(label: "来源", text: s)
+                }
+                HStack {
+                    Spacer()
+                    Button {
+                        withAnimation { aiExpanded = false }
+                        store.dismissAISearch(todo.id)
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "xmark.circle").font(.system(size: 9))
+                            Text("不采纳").font(.system(size: 10))
+                        }.foregroundColor(.secondary)
+                    }.buttonStyle(.plain).help("删除此建议，不再显示")
+                }
+            case .failed:
+                HStack(spacing: 5) {
+                    Text("检索失败").font(.system(size: 10.5)).foregroundColor(.orange)
+                    Button("重试") { store.startAISearch(todo.id) }
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(store.settings.activeAccentDeep)
+                        .buttonStyle(.plain)
+                }
+            case .skipped:
+                HStack {
+                    Text("私人事务，无需 AI 建议")
+                        .font(.system(size: 10.5)).foregroundColor(.secondary)
+                    Spacer()
+                    Button("仍要检索") { store.startAISearch(todo.id, force: true) }
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(store.settings.activeAccentDeep)
+                        .buttonStyle(.plain)
+                }
+            case .dismissed:
+                EmptyView()
+            case .idle:
+                Text(store.aiConfigured ? "等待检索…" : "请先在设置中配置大模型")
+                    .font(.system(size: 10.5)).foregroundColor(.secondary)
+            }
+        }
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 7).fill(store.settings.activeAccent.opacity(0.07)))
+        .padding(.top, 4)
+    }
+
+    private func aiResultLine(label: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 4) {
+            Text("\(label)：").font(.system(size: 10.5, weight: .semibold)).foregroundColor(store.settings.activeAccentDeep)
+            Text(text).font(.system(size: 10.5)).foregroundColor(Color(white: 0.3))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -164,6 +233,8 @@ struct TodoRow: View {
                                     .monospacedDigit()
                             }
                         }
+
+                        if aiExpanded { aiResultView }
                     }
                 }
 
@@ -192,6 +263,31 @@ struct TodoRow: View {
                             }
                     }
                     .buttonStyle(.plain)
+                }
+
+                // AI 帮手按钮（三横线左侧；未完成项显示）
+                if !todo.isDone {
+                    let dismissed = todo.aiSearchState == .dismissed
+                    Button {
+                        guard !dismissed else { return }   // 已不采纳:图标可见但不再触发
+                        withAnimation(.easeOut(duration: 0.15)) { aiExpanded.toggle() }
+                        if aiExpanded, todo.aiSearchState == .idle || todo.aiSearchState == .failed {
+                            store.startAISearch(todo.id)
+                        }
+                    } label: {
+                        // 不采纳→灰底禁止符;检索完成→主题色背景+白图标;其余→灰底灰图标
+                        Image(systemName: dismissed ? "nosign" : "sparkles")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(dismissed ? Color(white: 0.55) : (aiResultReady ? .white : Color(white: 0.6)))
+                            .frame(width: 18, height: 18)
+                            .background(
+                                Circle().fill(aiResultReady && !dismissed ? store.settings.activeAccent : Color(white: 0.9))
+                            )
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(dismissed ? "已不采纳" : "AI 帮手")
+                    .padding(.top, 4)
                 }
 
                 // 三横线按钮（拖拽排序 + 点击菜单）
