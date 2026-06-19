@@ -24,8 +24,8 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // 主题背景色调（铺满整个面板）
-            store.settings.activeSwatch.opacity(0.35)
+            // Native Utility 白底（取代毛玻璃 + 主题色调）
+            Color.nuSurface
                 .ignoresSafeArea()
 
             mainPage.opacity(page == .main ? 1 : 0)
@@ -90,13 +90,10 @@ struct ContentView: View {
         VStack(spacing: 0) {
             ZStack {
                 // 拖拽指示条（居中，整个区域可拖拽）
-                VStack(spacing: 2.5) {
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(Color(white: 0.74))
-                        .frame(width: 32, height: 2.5)
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(Color(white: 0.80))
-                        .frame(width: 32, height: 2.5)
+                VStack(spacing: 0) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.nuOutlineVariant.opacity(0.7))
+                        .frame(width: 36, height: 4)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
@@ -115,17 +112,17 @@ struct ContentView: View {
                     Spacer()
                     Button { AppDelegate.shared?.startScreenCapture() } label: {
                         Image(systemName: "camera.viewfinder")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Color(white: 0.65))
-                            .frame(width: 22, height: 22)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.nuOutline)
+                            .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
                     .onboardingAnchor("camera")
                     Button { withAnimation { page = .settings } } label: {
                         Image(systemName: "gearshape")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Color(white: 0.65))
-                            .frame(width: 22, height: 22)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.nuOutline)
+                            .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
                     .onboardingAnchor("settings")
@@ -143,7 +140,7 @@ struct ContentView: View {
             })
 
             // Separator
-            Rectangle().fill(Color(white: 0.92)).frame(height: 0.5).padding(.horizontal, 20)
+            Rectangle().fill(Color.nuOutlineVariant.opacity(0.4)).frame(height: 0.5).padding(.horizontal, 16)
 
             // Tab bar
             HStack(spacing: 0) {
@@ -152,39 +149,41 @@ struct ContentView: View {
                     .onboardingAnchor("notes")
                 Spacer()
                 if activeTab == .todos {
-                    Text("· \(filteredTodos.count)")
+                    Text("\(filteredTodos.count)")
                         .font(.system(size: 10.5, weight: .medium))
-                        .foregroundColor(Color(white: 0.6))
+                        .foregroundColor(.nuOutline)
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(Capsule().fill(Color.nuGray6))
                 }
             }
-            .padding(.horizontal, 22).padding(.top, 14).padding(.bottom, 8)
+            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
 
             if activeTab == .todos {
                 // Search bar
                 HStack(spacing: 8) {
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 12))
-                            .foregroundColor(Color(white: 0.6))
+                            .font(.system(size: 13))
+                            .foregroundColor(.nuOutline)
                         TextField("搜索待办、片段…", text: $searchText)
                             .textFieldStyle(.plain)
                             .font(.system(size: 13))
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(Color(white: 0.97))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(white: 0.92), lineWidth: 0.5))
-                    .cornerRadius(12)
+                    .padding(.horizontal, 12).frame(height: 36)
+                    .background(Color.nuGray6)
+                    .cornerRadius(8)
 
                     Button { showNewTodo = true } label: {
-                        Text("＋").font(.system(size: 15, weight: .medium))
-                            .frame(width: 30, height: 30)
-                            .background(store.settings.activeAccent.opacity(0.08))
-                            .foregroundColor(store.settings.activeAccentDeep)
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .semibold))
+                            .frame(width: 36, height: 36)
+                            .background(store.settings.activeAccent)
+                            .foregroundColor(.white)
                             .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 22).padding(.bottom, 2)
+                .padding(.horizontal, 16).padding(.bottom, 4)
 
                 // Todo list (flex area)
                 TodoListView(store: store, todos: filteredTodos)
@@ -192,10 +191,10 @@ struct ContentView: View {
 
                 // Quick copy tray
                 VStack(spacing: 0) {
-                    Rectangle().fill(Color(white: 0.92)).frame(height: 0.5)
+                    Rectangle().fill(Color.nuOutlineVariant.opacity(0.4)).frame(height: 0.5)
                     SnippetSection(store: store)
                 }
-                .background(Color(white: 0.98).opacity(0.65))
+                .background(Color.nuGray6.opacity(0.5))
                 .onboardingAnchor("snippets")
             } else {
                 NotesPanel(store: store)
@@ -222,11 +221,11 @@ struct ContentView: View {
                 Text(label)
                     .font(.system(size: 9, weight: .semibold))
             }
-            .foregroundColor(active ? store.settings.activeAccentDeep : Color(white: 0.6))
-            .padding(.horizontal, 6).padding(.vertical, 3)
+            .foregroundColor(active ? store.settings.activeAccentDeep : .nuOutline)
+            .padding(.horizontal, 7).padding(.vertical, 3)
             .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(active ? store.settings.activeAccent.opacity(0.14) : Color.clear)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(active ? Color.nuGray6 : Color.clear)
             )
         }
         .buttonStyle(.plain)
@@ -234,20 +233,23 @@ struct ContentView: View {
     }
 
     private func tabButton(_ label: String, tab: MainTab) -> some View {
-        Button {
+        let active = activeTab == tab
+        let small = store.settings.sizeMode == .small
+        return Button {
             withAnimation(.easeOut(duration: 0.15)) { activeTab = tab }
         } label: {
-            Text(label)
-                .font(.system(size: 10.5, weight: .semibold))
-                .tracking(1.2)
-                .foregroundColor(activeTab == tab ? store.settings.activeAccentDeep : Color(white: 0.6))
-                .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(activeTab == tab ? store.settings.activeAccent.opacity(0.12) : Color.clear)
-                )
+            VStack(spacing: 5) {
+                Text(label)
+                    .font(.system(size: small ? 13 : 15, weight: .semibold))
+                    .foregroundColor(active ? .nuOnSurface : .nuOutline)
+                // 选中态:主色下划线指示器
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(active ? store.settings.activeAccent : Color.clear)
+                    .frame(height: 2)
+            }
         }
         .buttonStyle(.plain)
+        .padding(.trailing, 16)
     }
 
     var filteredTodos: [Todo] {
@@ -280,17 +282,19 @@ struct SnippetSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
-            HStack {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.nuOutline)
                 Text("常用片段")
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .tracking(1.2)
-                    .foregroundColor(Color(white: 0.6))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.nuOnSurface)
                 Spacer()
                 Text("点击复制 · 双击编辑")
                     .font(.system(size: 10.5))
-                    .foregroundColor(Color(white: 0.75))
+                    .foregroundColor(.nuOutline)
             }
-            .padding(.horizontal, 22).padding(.top, 10).padding(.bottom, 2)
+            .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 4)
 
             // List
             if store.snippets.isEmpty && !showAdd {
@@ -331,13 +335,13 @@ struct SnippetSection: View {
             if !showAdd {
                 Button { showAdd = true } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "plus").font(.system(size: 10))
-                        Text("添加片段").font(.system(size: 11))
+                        Image(systemName: "plus").font(.system(size: 11, weight: .medium))
+                        Text("添加片段").font(.system(size: 12, weight: .medium))
                     }
-                    .foregroundColor(Color(white: 0.55))
+                    .foregroundColor(store.settings.activeAccentDeep)
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, 22).padding(.top, 4)
+                .padding(.horizontal, 16).padding(.top, 6)
             }
         }
         .padding(.bottom, 12)
@@ -365,8 +369,8 @@ struct SnippetSection: View {
                 } else {
                     HStack {
                         Text(s.text)
-                            .font(.system(size: 12.5))
-                            .foregroundColor(Color(white: 0.42))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(.nuOnSurfaceVariant)
                             .lineLimit(1)
                         Spacer(minLength: 8)
                         Text(copiedId == s.id ? "已复制 ✓" : "")
@@ -377,7 +381,7 @@ struct SnippetSection: View {
                     .frame(height: rowHeight)
                     .background(
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(copiedId == s.id ? Color(white: 0.95) : Color.clear)
+                            .fill(copiedId == s.id ? Color.nuGray6 : Color.clear)
                     )
                     .contentShape(Rectangle())
                     .gesture(

@@ -32,7 +32,7 @@ struct TodoListView: View {
                             // 死线行用整块暖色背景,连续两条之间需要透气以免视觉粘连
                             .padding(.vertical, todo.isSuperDeadline && !todo.isDone ? 3 : 0)
                             if todo.id != todos.last?.id, !todo.isSuperDeadline {
-                                Rectangle().fill(Color(white: 0.93)).frame(height: 0.5).padding(.leading, 36)
+                                Rectangle().fill(Color.nuOutlineVariant.opacity(0.35)).frame(height: 0.5).padding(.leading, 38)
                             }
                         }
                     }
@@ -67,9 +67,9 @@ struct TodoRow: View {
     private var overdue: Bool { store.isOverdue(todo) }
     private var aiResultReady: Bool { todo.aiSearchState == .done && (todo.aiConclusion?.isEmpty == false) }
 
-    // 方案 A：死线条目 = 左侧细红竖条（之前的亮红）+ 浅暖底
-    private let deadlineRed = Color.red
-    private let deadlineBG = Color(red: 0.96, green: 0.92, blue: 0.88)
+    // Native Utility:死线 = 左侧 4px 红边 + 极浅红整行底（#FFF2F2 / #FF3B30）
+    private let deadlineRed = Color.nuRed
+    private let deadlineBG = Color.nuDeadlineBg
 
     // AI 帮手展开区:结论 / 来源
     @ViewBuilder private var aiResultView: some View {
@@ -168,10 +168,10 @@ struct TodoRow: View {
             HStack(alignment: .top, spacing: 10) {
                 // 色块（死线项用左侧竖条代替，这里隐藏小点但保留 8pt 占位，保证文字左对齐一致）
                 Circle().fill(todo.color.color)
-                    .frame(width: 8, height: 8)
+                    .frame(width: 10, height: 10)
                     .overlay(Circle().stroke(Color.black.opacity(0.06), lineWidth: 0.5))
-                    .opacity(todo.isSuperDeadline && !todo.isDone ? 0 : (isHovered ? 0.95 : (todo.isDone ? 0.3 : 0.6)))
-                    .padding(.top, 5)
+                    .opacity(todo.isSuperDeadline && !todo.isDone ? 0 : (todo.isDone ? 0.35 : 1))
+                    .padding(.top, 4)
 
                 // 内容
                 VStack(alignment: .leading, spacing: 3) {
@@ -216,14 +216,14 @@ struct TodoRow: View {
                         let superActive = todo.isSuperDeadline && !todo.isDone
                         Text(todo.text)
                             .font(.system(size: 13, weight: superActive ? .semibold : .regular)).tracking(-0.1)
-                            .foregroundColor(todo.isDone ? Color(white: 0.6) : Color(white: 0.13))
-                            .strikethrough(todo.isDone, color: Color(white: 0.6))
+                            .foregroundColor(todo.isDone ? .nuOutline : .nuOnSurface)
+                            .strikethrough(todo.isDone, color: .nuOutline)
                             .fixedSize(horizontal: false, vertical: true)
 
                         HStack(spacing: 6) {
                             Text(relativeTime(todo.createdAt))
                                 .font(.system(size: 11))
-                                .foregroundColor(superActive ? deadlineRed : Color(white: 0.6))
+                                .foregroundColor(superActive ? deadlineRed : .nuOutline)
                                 .monospacedDigit()
                             if let dl = todo.deadline {
                                 let overdueDL = dl < Date()
@@ -278,10 +278,10 @@ struct TodoRow: View {
                         // 不采纳→灰底禁止符;检索完成→主题色背景+白图标;其余→灰底灰图标
                         Image(systemName: dismissed ? "nosign" : "sparkles")
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(dismissed ? Color(white: 0.55) : (aiResultReady ? .white : Color(white: 0.6)))
-                            .frame(width: 18, height: 18)
+                            .foregroundColor(dismissed ? .nuOutline : (aiResultReady ? .white : .nuOutline))
+                            .frame(width: 20, height: 20)
                             .background(
-                                Circle().fill(aiResultReady && !dismissed ? store.settings.activeAccent : Color(white: 0.9))
+                                Circle().fill(aiResultReady && !dismissed ? store.settings.activeAccent : Color.nuGray6)
                             )
                             .contentShape(Rectangle())
                     }
@@ -294,7 +294,7 @@ struct TodoRow: View {
                 VStack(spacing: 2.5) {
                     ForEach(0..<3, id: \.self) { _ in
                         RoundedRectangle(cornerRadius: 0.5)
-                            .fill(Color(white: 0.72))
+                            .fill(Color.nuOutlineVariant)
                             .frame(width: 12, height: 1.5)
                     }
                 }
@@ -309,21 +309,20 @@ struct TodoRow: View {
                 }
                 .padding(.top, 4)
             }
-            .padding(.vertical, 9).padding(.horizontal, 8)
+            .padding(.vertical, 10).padding(.horizontal, 10)
             .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(todo.isSuperDeadline && !todo.isDone ? deadlineBG : (isHovered ? Color(white: 0.97) : Color.clear))
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(todo.isSuperDeadline && !todo.isDone ? deadlineBG : (isHovered ? Color.nuGray6 : Color.clear))
             )
             .overlay(alignment: .leading) {
                 if todo.isSuperDeadline && !todo.isDone {
-                    // 细红竖条：离左缘留缝 + 上下内缩 + 胶囊形
-                    Capsule()
+                    // 4px 红边齐左缘(Native Utility border-l-4)
+                    UnevenRoundedRectangle(topLeadingRadius: 8, bottomLeadingRadius: 8)
                         .fill(deadlineRed)
-                        .frame(width: 5)
-                        .padding(.vertical, 7)
-                        .padding(.leading, 4)
+                        .frame(width: 4)
                 }
             }
+            .clipShape(RoundedRectangle(cornerRadius: 8))
             .opacity(todo.isDone ? 0.65 : 1)
             .onTapGesture {
                 if slideOpen { withAnimation(.easeOut(duration: 0.15)) { slideOpen = false } }
@@ -465,11 +464,11 @@ struct NewTodoOverlay: View {
         ZStack {
             Color.black.opacity(0.25).onTapGesture { isPresented = false }
             VStack(alignment: .leading, spacing: 12) {
-                Text("新建待办").font(.system(size: 16, weight: .semibold))
+                Text("新建待办").font(.system(size: 16, weight: .semibold)).foregroundColor(.nuOnSurface)
                 TextField("输入待办事项…", text: $text).textFieldStyle(.roundedBorder).font(.system(size: 13))
 
                 // DDL: 7天香囊卡片
-                Text("截止日期").font(.system(size: 11, weight: .medium)).foregroundColor(Color(white: 0.5))
+                Text("截止日期").font(.system(size: 11, weight: .medium)).foregroundColor(.nuOnSurfaceVariant)
                 HStack(spacing: 5) {
                     ForEach(0..<7, id: \.self) { i in
                         let day = next7Days[i]
@@ -477,11 +476,11 @@ struct NewTodoOverlay: View {
                         VStack(spacing: 1) {
                             Text(day.dayNum).font(.system(size: 12, weight: sel ? .bold : .medium)).monospacedDigit()
                             Text(day.label).font(.system(size: 8))
-                                .foregroundColor(sel ? store.settings.activeAccentDeep : Color(white: 0.5))
+                                .foregroundColor(sel ? store.settings.activeAccentDeep : .nuOutline)
                         }
                         .frame(width: 38, height: 34)
-                        .background(SachetShape().fill(sel ? store.settings.activeSwatch : Color(white: 0.96)))
-                        .overlay(SachetShape().stroke(sel ? store.settings.activeAccent.opacity(0.4) : Color(white: 0.9), lineWidth: 0.5))
+                        .background(SachetShape().fill(sel ? store.settings.activeSwatch : Color.nuGray6))
+                        .overlay(SachetShape().stroke(sel ? store.settings.activeAccent.opacity(0.4) : Color.nuOutlineVariant.opacity(0.5), lineWidth: 0.5))
                         .clipShape(SachetShape())
                         .rotationEffect(.degrees(sin(Double(i * 5 + 3)) * 2), anchor: .top)
                         .onTapGesture { withAnimation(.easeOut(duration: 0.1)) { selectedDayIndex = sel ? nil : i } }
@@ -545,7 +544,7 @@ struct NewTodoOverlay: View {
                 }.padding(.top, 4)
             }
             .padding(20).frame(width: 340)
-            .background(.regularMaterial).cornerRadius(14).shadow(radius: 20)
+            .background(Color.white).cornerRadius(14).shadow(color: .black.opacity(0.18), radius: 24, y: 8)
             .onAppear { setupPasteMonitor() }.onDisappear { removePasteMonitor() }
         }
     }

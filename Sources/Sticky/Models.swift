@@ -1,5 +1,19 @@
 import SwiftUI
 
+// MARK: - Native Utility 配色（表面/语义色，accent 仍走主题色 activeAccent，不在此）
+
+extension Color {
+    static let nuSurface          = Color(red: 0.976, green: 0.976, blue: 1.0)    // #f9f9ff 面板底
+    static let nuGray6            = Color(red: 0.949, green: 0.949, blue: 0.969)  // #F2F2F7 搜索/hover/badge
+    static let nuOutline          = Color(red: 0.443, green: 0.467, blue: 0.525)  // #717786 次要文字/图标
+    static let nuOutlineVariant   = Color(red: 0.757, green: 0.776, blue: 0.843)  // #c1c6d7 边框/分隔线
+    static let nuOnSurface        = Color(red: 0.094, green: 0.110, blue: 0.137)  // #181c23 主文字
+    static let nuOnSurfaceVariant = Color(red: 0.255, green: 0.278, blue: 0.333)  // #414755 副文字
+    static let nuRed              = Color(red: 1.0,   green: 0.231, blue: 0.188)  // #FF3B30 死线/危险
+    static let nuDeadlineBg       = Color(red: 1.0,   green: 0.949, blue: 0.949)  // #FFF2F2 死线整行底
+    static let nuGreen            = Color(red: 0.204, green: 0.780, blue: 0.349)  // #34C759 成功
+}
+
 // MARK: - Todo
 
 enum AISearchState: String, Codable {

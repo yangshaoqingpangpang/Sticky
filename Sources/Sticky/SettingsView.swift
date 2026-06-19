@@ -21,7 +21,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             settingsHeader
-            Divider().padding(.horizontal, 14)
+            Rectangle().fill(Color.nuOutlineVariant.opacity(0.4)).frame(height: 0.5).padding(.horizontal, 16)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     themeSection
@@ -34,8 +34,8 @@ struct SettingsView: View {
                     sectionDivider
                     aiSection
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 6)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
                 .padding(.bottom, 20)
             }
         }
@@ -52,7 +52,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("数据备份")
             Text("导出会把全部待办、片段、纪念日、笔记及图片打包成一个文件；导入会用所选备份覆盖当前数据。")
-                .font(.system(size: 10.5)).foregroundColor(.secondary)
+                .font(.system(size: 10.5)).foregroundColor(.nuOutline)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 Button {
@@ -65,7 +65,7 @@ struct SettingsView: View {
                     }
                     .foregroundColor(store.settings.activeAccentDeep)
                     .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(store.settings.activeAccent.opacity(0.1))
+                    .background(store.settings.activeAccent.opacity(0.12))
                     .cornerRadius(8)
                 }.buttonStyle(.plain)
 
@@ -77,9 +77,9 @@ struct SettingsView: View {
                         Image(systemName: "square.and.arrow.down").font(.system(size: 11, weight: .medium))
                         Text("导入备份").font(.system(size: 12, weight: .medium))
                     }
-                    .foregroundColor(Color(white: 0.4))
+                    .foregroundColor(.nuOnSurfaceVariant)
                     .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(Color(white: 0.95))
+                    .background(Color.nuGray6)
                     .cornerRadius(8)
                 }.buttonStyle(.plain)
             }
@@ -87,7 +87,7 @@ struct SettingsView: View {
     }
 
     private var sectionDivider: some View {
-        Rectangle().fill(Color(white: 0.9)).frame(height: 0.5).padding(.vertical, 16)
+        Rectangle().fill(Color.nuOutlineVariant.opacity(0.4)).frame(height: 0.5).padding(.vertical, 16)
     }
 
     // MARK: - AI 配置
@@ -128,12 +128,12 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("AI 配置")
             Text("配置大模型供应商、接口地址与 API Key，保存后作为调用大模型的凭证。")
-                .font(.system(size: 10.5)).foregroundColor(.secondary)
+                .font(.system(size: 10.5)).foregroundColor(.nuOutline)
                 .fixedSize(horizontal: false, vertical: true)
 
             // 供应商下拉
             HStack(spacing: 8) {
-                Text("大模型").font(.system(size: 12, weight: .medium)).foregroundColor(.secondary).frame(width: 56, alignment: .leading)
+                Text("大模型").font(.system(size: 12, weight: .medium)).foregroundColor(.nuOnSurfaceVariant).frame(width: 56, alignment: .leading)
                 Picker("", selection: Binding(get: { aiProvider }, set: { onProviderChange($0) })) {
                     ForEach(AIProvider.allCases, id: \.self) { p in
                         Text(p.label).tag(p)
@@ -164,13 +164,13 @@ struct SettingsView: View {
             .onTapGesture { withAnimation(.easeOut(duration: 0.18)) { aiPromptExpanded.toggle() } }
 
             if aiPromptExpanded {
-                Text("用 {{todo}} 代表待办内容").font(.system(size: 9.5)).foregroundStyle(.tertiary)
+                Text("用 {{todo}} 代表待办内容").font(.system(size: 9.5)).foregroundColor(.nuOutline)
                 TextEditor(text: $aiPrompt)
                     .font(.system(size: 11))
                     .frame(height: 120)
                     .padding(6)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(Color(white: 0.97)))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(white: 0.88), lineWidth: 0.5))
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.nuGray6))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.nuOutlineVariant.opacity(0.5), lineWidth: 0.5))
                     .scrollContentBackground(.hidden)
             }
 
@@ -182,7 +182,7 @@ struct SettingsView: View {
                     }
                     .foregroundColor(store.settings.activeAccentDeep)
                     .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(store.settings.activeAccent.opacity(0.1))
+                    .background(store.settings.activeAccent.opacity(0.12))
                     .cornerRadius(8)
                 }.buttonStyle(.plain)
 
@@ -202,28 +202,40 @@ struct SettingsView: View {
                         }
                         Text(aiTesting ? "测试中…" : "测试连接").font(.system(size: 12, weight: .medium))
                     }
-                    .foregroundColor(Color(white: 0.4))
+                    .foregroundColor(.nuOnSurfaceVariant)
                     .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(Color(white: 0.95))
+                    .background(Color.nuGray6)
                     .cornerRadius(8)
                 }.buttonStyle(.plain).disabled(aiTesting)
+
+                // 大 UI:状态提示在按钮右侧,单行不换行
+                if store.settings.sizeMode == .large, let s = aiStatus {
+                    aiStatusView(s, wrap: false)
+                }
+                Spacer(minLength: 0)
             }
 
-            if let s = aiStatus {
-                HStack(spacing: 5) {
-                    Image(systemName: s.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .font(.system(size: 10))
-                    Text(s.text).font(.system(size: 10.5))
-                }
-                .foregroundColor(s.ok ? Color.green.opacity(0.85) : Color.orange)
-                .fixedSize(horizontal: false, vertical: true)
+            // 小 UI:状态提示换行显示在按钮下方
+            if store.settings.sizeMode == .small, let s = aiStatus {
+                aiStatusView(s, wrap: true)
             }
         }
     }
 
+    private func aiStatusView(_ s: (ok: Bool, text: String), wrap: Bool) -> some View {
+        HStack(alignment: .top, spacing: 4) {
+            Image(systemName: s.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.system(size: 10))
+            Text(s.text).font(.system(size: 10.5))
+                .lineLimit(wrap ? nil : 1)
+                .fixedSize(horizontal: false, vertical: wrap)
+        }
+        .foregroundColor(s.ok ? Color.nuGreen : Color.orange)
+    }
+
     private func aiField(label: String, text: Binding<String>, placeholder: String) -> some View {
         HStack(spacing: 8) {
-            Text(label).font(.system(size: 12, weight: .medium)).foregroundColor(.secondary).frame(width: 56, alignment: .leading)
+            Text(label).font(.system(size: 12, weight: .medium)).foregroundColor(.nuOnSurfaceVariant).frame(width: 56, alignment: .leading)
             TextField(placeholder, text: text)
                 .textFieldStyle(.roundedBorder).font(.system(size: 12))
         }
@@ -231,24 +243,27 @@ struct SettingsView: View {
 
     private func aiSecureField(label: String, text: Binding<String>, placeholder: String) -> some View {
         HStack(spacing: 8) {
-            Text(label).font(.system(size: 12, weight: .medium)).foregroundColor(.secondary).frame(width: 56, alignment: .leading)
+            Text(label).font(.system(size: 12, weight: .medium)).foregroundColor(.nuOnSurfaceVariant).frame(width: 56, alignment: .leading)
             SecureField(placeholder, text: text)
                 .textFieldStyle(.roundedBorder).font(.system(size: 12))
         }
     }
 
     private var settingsHeader: some View {
-        HStack {
-            Button { withAnimation { page = .main } } label: {
-                HStack(spacing: 2) {
-                    Image(systemName: "chevron.left").font(.system(size: 12))
-                    Text("返回")
-                }.font(.system(size: 13)).foregroundColor(store.settings.activeAccent)
-            }.buttonStyle(.plain)
-            Text("设置").font(.system(size: 17, weight: .semibold))
-            Spacer()
+        ZStack {
+            Text("设置").font(.system(size: 16, weight: .semibold)).foregroundColor(.nuOnSurface)
+                .frame(maxWidth: .infinity)
+            HStack {
+                Button { withAnimation { page = .main } } label: {
+                    HStack(spacing: 2) {
+                        Image(systemName: "chevron.left").font(.system(size: 12, weight: .medium))
+                        Text("返回")
+                    }.font(.system(size: 13)).foregroundColor(store.settings.activeAccentDeep)
+                }.buttonStyle(.plain)
+                Spacer()
+            }
         }
-        .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 10)
+        .padding(.horizontal, 16).padding(.top, 18).padding(.bottom, 12)
     }
 
     private var themeSection: some View {
@@ -347,27 +362,29 @@ struct EmbeddedCalendar: View {
 
     var body: some View {
         ZStack {
-            VStack(spacing: 4) {
+            VStack(spacing: 10) {
                 // 月份切换
                 HStack {
                     Button { withAnimation(.easeOut(duration: 0.1)) { prevMonth() } } label: {
-                        Image(systemName: "chevron.left").font(.system(size: 10, weight: .medium))
-                            .frame(width: 22, height: 22).background(Color(white: 0.94)).cornerRadius(5)
+                        Image(systemName: "chevron.left").font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.nuOnSurfaceVariant).frame(width: 28, height: 28)
                     }.buttonStyle(.plain)
                     Spacer()
                     Text("\(String(displayYear))年\(displayMonth)月")
-                        .font(.system(size: 13, weight: .semibold)).monospacedDigit()
+                        .font(.system(size: 14, weight: .semibold)).monospacedDigit()
+                        .foregroundColor(.nuOnSurface)
                     Spacer()
                     Button { withAnimation(.easeOut(duration: 0.1)) { nextMonth() } } label: {
-                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .medium))
-                            .frame(width: 22, height: 22).background(Color(white: 0.94)).cornerRadius(5)
+                        Image(systemName: "chevron.right").font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.nuOnSurfaceVariant).frame(width: 28, height: 28)
                     }.buttonStyle(.plain)
                 }
 
                 // 星期
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 7), spacing: 0) {
+                HStack(spacing: 6) {
                     ForEach(["日","一","二","三","四","五","六"], id: \.self) { d in
-                        Text(d).font(.system(size: 9, weight: .medium)).foregroundColor(Color(white: 0.55)).frame(height: 16)
+                        Text(d).font(.system(size: 11, weight: .medium)).foregroundColor(.nuOutline)
+                            .frame(maxWidth: .infinity)
                     }
                 }
 
@@ -375,21 +392,21 @@ struct EmbeddedCalendar: View {
                 let days = generateDays()
                 let rowCount = (days.count + 6) / 7
 
-                VStack(spacing: 4) {
+                VStack(spacing: 6) {
                     ForEach(0..<rowCount, id: \.self) { row in
-                        ZStack {
-                            Rectangle().fill(Color(white: 0.84)).frame(height: 0.5).offset(y: -30)
-                            HStack(spacing: 4) {
-                                ForEach(0..<7, id: \.self) { col in
-                                    let idx = row * 7 + col
-                                    if idx < days.count { dayCard(days[idx]) }
-                                    else { Color.clear.frame(height: 68) }
-                                }
+                        HStack(spacing: 6) {
+                            ForEach(0..<7, id: \.self) { col in
+                                let idx = row * 7 + col
+                                if idx < days.count { dayCard(days[idx]) }
+                                else { Color.clear.frame(maxWidth: .infinity).frame(height: 48) }
                             }
                         }
                     }
                 }
             }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.nuOutlineVariant.opacity(0.5), lineWidth: 1))
 
             // 弹窗
             if showDetail, let day = selectedDay {
@@ -397,8 +414,8 @@ struct EmbeddedCalendar: View {
                     Color.black.opacity(0.15).onTapGesture { withAnimation(.easeOut(duration: 0.1)) { showDetail = false } }
                     DayDetailView(store: store, day: day, onDismiss: { withAnimation(.easeOut(duration: 0.1)) { showDetail = false } })
                         .frame(width: 280)
-                        .background(.regularMaterial).cornerRadius(12)
-                        .shadow(color: .black.opacity(0.12), radius: 12)
+                        .background(Color.white).cornerRadius(12)
+                        .shadow(color: .black.opacity(0.15), radius: 16, y: 6)
                 }.transition(.opacity)
             }
         }
@@ -408,32 +425,31 @@ struct EmbeddedCalendar: View {
     private func dayCard(_ day: DayInfo) -> some View {
         Group {
             if day.isPlaceholder {
-                Color.clear.frame(height: 68)
+                Color.clear.frame(maxWidth: .infinity).frame(height: 48)
             } else {
                 let hasEvent = !day.events.isEmpty
-                ZStack(alignment: .top) {
-                    Rectangle().fill(Color(white: 0.78)).frame(width: 0.5, height: 5).offset(y: -2)
-                    VStack(spacing: 1) {
-                        Spacer().frame(height: 3)
-                        Text("\(day.day)")
-                            .font(.system(size: 14, weight: day.isToday ? .bold : .medium))
-                            .monospacedDigit()
-                            .foregroundColor(day.isToday ? store.settings.activeAccentDeep : Color(white: 0.22))
-                        VStack(spacing: 1) {
-                            ForEach(day.events.prefix(2), id: \.self) { e in
-                                Text(e).font(.system(size: 8, weight: .medium))
-                                    .foregroundColor(store.settings.activeAccentDeep).lineLimit(1)
-                            }
-                        }.frame(maxHeight: .infinity)
-                        Spacer().frame(height: 2)
+                VStack(spacing: 1) {
+                    Text("\(day.day)")
+                        .font(.system(size: 14, weight: day.isToday ? .semibold : .regular))
+                        .monospacedDigit()
+                        .foregroundColor(day.isToday ? store.settings.activeAccentDeep : .nuOnSurface)
+                    if let e = day.events.first {
+                        Text(e).font(.system(size: 8, weight: .medium))
+                            .foregroundColor(store.settings.activeAccentDeep).lineLimit(1)
                     }
-                    .frame(maxWidth: .infinity).frame(height: 60)
-                    .background(SachetShape().fill(day.isToday ? store.settings.activeSwatch : hasEvent ? Color(white: 0.96) : Color(white: 0.99)))
-                    .overlay(SachetShape().stroke(day.isToday ? store.settings.activeAccent.opacity(0.4) : hasEvent ? Color(white: 0.86) : Color(white: 0.91), lineWidth: 0.5))
-                    .clipShape(SachetShape()).offset(y: 2)
                 }
-                .frame(height: 68)
-                .rotationEffect(.degrees(day.rotation), anchor: .top)
+                .frame(maxWidth: .infinity).frame(height: 48)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(day.isToday ? store.settings.activeSwatch
+                              : (hasEvent ? Color.nuGray6.opacity(0.7) : Color.nuGray6.opacity(0.35)))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(day.isToday ? store.settings.activeAccent : Color.clear,
+                                lineWidth: day.isToday ? 2 : 0)
+                )
+                .contentShape(Rectangle())
                 .onTapGesture { selectedDay = day; withAnimation(.easeOut(duration: 0.1)) { showDetail = true } }
             }
         }

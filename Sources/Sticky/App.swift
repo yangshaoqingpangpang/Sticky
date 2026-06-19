@@ -45,9 +45,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func panelH(_ vf: CGRect) -> CGFloat {
         store.settings.sizeMode == .large ? vf.height : vf.height / 2
     }
-    /// 窗口左下角 y:统一从 vf 顶部往下 panelH。大档下等价 vf.origin.y,小档下窗口贴 menu bar 下沿
+    /// 窗口左下角 y:默认从 vf 顶部往下 panelH(大档=贴顶全高;小档=贴 menu bar 下沿)
     private func panelY(_ vf: CGRect) -> CGFloat {
         vf.maxY - panelH(vf)
+    }
+    /// 小尺寸拖拽后记忆的垂直位置(nil=默认贴顶)。大尺寸是全高,无垂直自由度,忽略此值。
+    private var dockedY: CGFloat?
+    /// 实际生效的 y:小档且有拖拽记忆 → 用记忆值(clamp 在屏幕内);否则默认贴顶
+    private func effectiveY(_ vf: CGRect) -> CGFloat {
+        let h = panelH(vf)
+        guard store.settings.sizeMode == .small, let y = dockedY else { return panelY(vf) }
+        return min(max(y, vf.origin.y), vf.maxY - h)
     }
 
     /// 窗口所在屏幕（多屏安全：优先用窗口所在屏幕，回退到主屏幕）
@@ -97,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let h = panelH(vf)
 
         window = PanelWindow(
-            contentRect: NSRect(x: 0, y: panelY(vf), width: stripW, height: h),
+            contentRect: NSRect(x: 0, y: effectiveY(vf), width: stripW, height: h),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: false
         )
@@ -144,10 +152,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelContainer.isHidden = true
         updatePanelMask(height: h)
 
-        let visual = NSVisualEffectView(frame: panelContainer.bounds)
-        visual.material = .sidebar
-        visual.state = .active
-        visual.blendingMode = .behindWindow
+        // Native Utility:实色白底取代毛玻璃(#f9f9ff)
+        let visual = NSView(frame: panelContainer.bounds)
+        visual.wantsLayer = true
+        visual.layer?.backgroundColor = NSColor(red: 0.976, green: 0.976, blue: 1.0, alpha: 1.0).cgColor
         visual.autoresizingMask = [.width, .height]
         panelContainer.addSubview(visual)
 
@@ -193,7 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            window.animator().setFrame(NSRect(x: x, y: panelY(vf), width: frameW, height: h), display: true)
+            window.animator().setFrame(NSRect(x: x, y: effectiveY(vf), width: frameW, height: h), display: true)
         } completionHandler: { [weak self] in
             // 动画完成后再更新 strip(没用 autoresize)和 mask,确保跟最终 frame 同步
             self?.stripView.frame = NSRect(x: 0, y: 0, width: self?.stripW ?? 4, height: h)
@@ -246,7 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             x = dockedSide == .left ? vf.origin.x : vf.maxX - stripW
         }
-        let targetFrame = NSRect(x: x, y: panelY(vf), width: expanded ? panelW : stripW, height: h)
+        let targetFrame = NSRect(x: x, y: effectiveY(vf), width: expanded ? panelW : stripW, height: h)
         window.setFrame(targetFrame, display: true)
         updatePanelMask(height: h)
     }
@@ -265,9 +273,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             updatePanelMask(height: h)
         }
 
+        // 小尺寸:记忆当前拖拽到的垂直位置(只吸附水平边,垂直保持)
+        if store.settings.sizeMode == .small {
+            dockedY = min(max(window.frame.origin.y, vf.origin.y), vf.maxY - h)
+        }
+
         // 吸附到窗口所在屏幕的边缘，高度适配该屏幕
         let x: CGFloat = dockedSide == .left ? vf.origin.x : vf.maxX - (expanded ? panelW : stripW)
-        let targetFrame = NSRect(x: x, y: panelY(vf), width: expanded ? panelW : stripW, height: h)
+        let targetFrame = NSRect(x: x, y: effectiveY(vf), width: expanded ? panelW : stripW, height: h)
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.1
@@ -295,7 +308,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.12
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            window.animator().setFrame(NSRect(x: x, y: panelY(vf), width: panelW, height: h), display: true)
+            window.animator().setFrame(NSRect(x: x, y: effectiveY(vf), width: panelW, height: h), display: true)
         }
 
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in

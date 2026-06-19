@@ -30,38 +30,34 @@ struct NotesListView: View {
                     let id = store.addNote()
                     onSelect(id)
                 } label: {
-                    Text("＋").font(.system(size: 15, weight: .medium))
-                        .frame(width: 30, height: 30)
-                        .background(store.settings.activeAccent.opacity(0.08))
-                        .foregroundColor(store.settings.activeAccentDeep)
+                    Image(systemName: "plus").font(.system(size: 14, weight: .semibold))
+                        .frame(width: 36, height: 36)
+                        .background(store.settings.activeAccent)
+                        .foregroundColor(.white)
                         .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 22).padding(.bottom, 6)
+            .padding(.horizontal, 16).padding(.bottom, 6)
 
             if store.notes.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "lightbulb")
                         .font(.system(size: 28))
-                        .foregroundColor(Color(white: 0.75))
+                        .foregroundColor(.nuOutlineVariant)
                     Text("点击 ＋ 记录灵感")
                         .font(.system(size: 13))
-                        .foregroundColor(Color(white: 0.6))
+                        .foregroundColor(.nuOutline)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 0) {
+                    LazyVStack(spacing: 10) {
                         ForEach(store.notes) { note in
                             NoteRow(note: note, store: store, onSelect: onSelect)
-                            if note.id != store.notes.last?.id {
-                                Rectangle().fill(Color(white: 0.93)).frame(height: 0.5)
-                                    .padding(.leading, 22)
-                            }
                         }
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 4)
+                    .padding(.horizontal, 16).padding(.vertical, 4)
                 }
             }
         }
@@ -78,56 +74,59 @@ struct NoteRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            // 色点
+            // 左侧主题色条
             RoundedRectangle(cornerRadius: 2)
-                .fill(store.settings.activeAccent.opacity(0.5))
-                .frame(width: 4, height: 32)
-                .padding(.top, 4)
+                .fill(store.settings.activeAccent)
+                .frame(width: 3, height: 30)
+                .padding(.top, 3)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(note.title.isEmpty ? "未命名笔记" : note.title)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(Color(white: 0.13))
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .top) {
+                    Text(note.title.isEmpty ? "未命名笔记" : note.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.nuOnSurface)
+                        .lineLimit(1)
+                    Spacer(minLength: 6)
+                    Text("\(note.content.count)字")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.nuOutline)
+                }
 
                 if !note.content.isEmpty {
                     Text(note.content)
                         .font(.system(size: 11.5))
-                        .foregroundColor(Color(white: 0.5))
+                        .foregroundColor(.nuOnSurfaceVariant)
                         .lineLimit(8)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Text(relativeTime(note.updatedAt))
-                    .font(.system(size: 10.5))
-                    .foregroundColor(Color(white: 0.65))
-                    .monospacedDigit()
+                HStack {
+                    Text(relativeTime(note.updatedAt))
+                        .font(.system(size: 10.5))
+                        .foregroundColor(.nuOutline)
+                        .monospacedDigit()
+                    Spacer()
+                    // 淡淡的删除错号
+                    Button { store.deleteNote(note.id) } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.nuOutline)
+                            .frame(width: 18, height: 18)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(isHovered ? 0.9 : 0.35)
+                }
             }
-
-            Spacer(minLength: 4)
-
-            // 字数
-            Text("\(note.content.count)字")
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(Color(white: 0.7))
-                .padding(.top, 6)
-
-            // 淡淡的删除错号
-            Button { store.deleteNote(note.id) } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(Color(white: 0.6))
-                    .frame(width: 20, height: 20)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .opacity(isHovered ? 0.9 : 0.35)
-            .padding(.top, 2)
         }
-        .padding(.vertical, 9).padding(.horizontal, 8)
+        .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(isHovered ? Color(white: 0.97) : Color.clear)
+                .fill(isHovered ? Color.nuGray6.opacity(0.6) : Color.white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.nuOutlineVariant.opacity(0.5), lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onTapGesture { onSelect(note.id) }
@@ -182,38 +181,38 @@ struct NoteEditorView: View {
 
                 Text("\(content.count)字")
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(Color(white: 0.65))
+                    .foregroundColor(.nuOutline)
             }
-            .padding(.horizontal, 22).padding(.vertical, 8)
+            .padding(.horizontal, 16).padding(.vertical, 8)
 
-            Rectangle().fill(Color(white: 0.92)).frame(height: 0.5).padding(.horizontal, 20)
+            Rectangle().fill(Color.nuOutlineVariant.opacity(0.4)).frame(height: 0.5).padding(.horizontal, 16)
 
             // Title（带浅色标注）
             VStack(alignment: .leading, spacing: 3) {
                 Text("标题")
                     .font(.system(size: 10, weight: .medium)).tracking(0.5)
-                    .foregroundColor(Color(white: 0.68))
+                    .foregroundColor(.nuOutline)
                 TextField("输入标题…", text: $title)
                     .textFieldStyle(.plain)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(white: 0.13))
+                    .foregroundColor(.nuOnSurface)
                     .onChange(of: title) { _, newVal in
                         store.updateNote(note.id, title: newVal)
                     }
             }
-            .padding(.horizontal, 22).padding(.top, 12).padding(.bottom, 8)
+            .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 8)
 
             // 题目 / 内容 分隔线
-            Rectangle().fill(Color(white: 0.92)).frame(height: 0.5).padding(.horizontal, 22)
+            Rectangle().fill(Color.nuOutlineVariant.opacity(0.4)).frame(height: 0.5).padding(.horizontal, 16)
 
             // 正文标注
             HStack {
                 Text("正文")
                     .font(.system(size: 10, weight: .medium)).tracking(0.5)
-                    .foregroundColor(Color(white: 0.68))
+                    .foregroundColor(.nuOutline)
                 Spacer()
             }
-            .padding(.horizontal, 22).padding(.top, 10).padding(.bottom, 2)
+            .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 2)
 
             // Content editor
             ScrollView {
