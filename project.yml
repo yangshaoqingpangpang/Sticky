@@ -20,19 +20,20 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yangshaoqing.sticky
-        PRODUCT_NAME: 边笺
-        MARKETING_VERSION: "1.0.4"
-        CURRENT_PROJECT_VERSION: "5"
+        PRODUCT_NAME: 侧边待办
+        MARKETING_VERSION: "1.0.6"
+        CURRENT_PROJECT_VERSION: "11"
         GENERATE_INFOPLIST_FILE: true
         INFOPLIST_GENERATION_MODE: GeneratedFile
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.productivity"
         INFOPLIST_KEY_LSUIElement: true
-        INFOPLIST_KEY_CFBundleDisplayName: 边笺
+        INFOPLIST_KEY_CFBundleDisplayName: 侧边待办
         INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 yangshaoqing. All rights reserved."
         CODE_SIGN_ENTITLEMENTS: Sources/Sticky/Sticky.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: true
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 7J5C6QKK68
 
 schemes:
   Sticky:

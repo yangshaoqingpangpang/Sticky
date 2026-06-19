@@ -1,0 +1,45 @@
+diff --git a/Sources/Sticky/ContentView.swift b/Sources/Sticky/ContentView.swift
+index 87bd231..22e3310 100644
+--- a/Sources/Sticky/ContentView.swift
++++ b/Sources/Sticky/ContentView.swift
+@@ -16,9 +16,10 @@ struct ContentView: View {
+ 
+     private let onboardingSteps: [(id: String, title: String, text: String)] = [
+         ("todo", "待办事项工作区", "这里是主工作区，单击可以关闭，点击右侧三杠可以完全删除以及设置死线"),
++        ("todo", "AI 帮手", "每条待办右侧的 ✦ 是 AI 帮手，会用大模型自动检索相关信息，给出「结论 / 来源」。私人事务会自动跳过省流量，需在设置里配置大模型后启用。"),
+         ("notes", "灵感区", "这是用于随手记的区域，点右侧的 ✕ 可删除"),
+         ("snippets", "常用片段区", "常用短语放这里，点击快速复制，记录密码邮箱很方便"),
+-        ("settings", "设置区", "这里可以配色，自定义节日，做更懂你的便笺工具。"),
++        ("settings", "设置区", "这里可以配色、自定义节日、配置 AI 大模型，做更懂你的侧边待办。"),
+         ("camera", "截屏待办", "点击相机即可截屏，快速生成一张图片待办。"),
+     ]
+ 
+diff --git a/project.yml b/project.yml
+index c5e8f06..2d4820a 100644
+--- a/project.yml
++++ b/project.yml
+@@ -20,19 +20,20 @@ targets:
+     settings:
+       base:
+         PRODUCT_BUNDLE_IDENTIFIER: com.yangshaoqing.sticky
+-        PRODUCT_NAME: 边笺
+-        MARKETING_VERSION: "1.0.4"
+-        CURRENT_PROJECT_VERSION: "5"
++        PRODUCT_NAME: 侧边待办
++        MARKETING_VERSION: "1.0.6"
++        CURRENT_PROJECT_VERSION: "11"
+         GENERATE_INFOPLIST_FILE: true
+         INFOPLIST_GENERATION_MODE: GeneratedFile
+         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.productivity"
+         INFOPLIST_KEY_LSUIElement: true
+-        INFOPLIST_KEY_CFBundleDisplayName: 边笺
++        INFOPLIST_KEY_CFBundleDisplayName: 侧边待办
+         INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 yangshaoqing. All rights reserved."
+         CODE_SIGN_ENTITLEMENTS: Sources/Sticky/Sticky.entitlements
+         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+         ENABLE_HARDENED_RUNTIME: true
+         CODE_SIGN_STYLE: Automatic
++        DEVELOPMENT_TEAM: 7J5C6QKK68
+ 
+ schemes:
+   Sticky:
