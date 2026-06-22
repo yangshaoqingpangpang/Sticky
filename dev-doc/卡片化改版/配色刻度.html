@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>侧边待办 · 主色 100–1000 刻度</title>
+<style>
+  body{font-family:-apple-system,"PingFang SC",sans-serif;background:#f7f7f8;color:#1a1a1a;margin:0;padding:28px}
+  h1{font-size:20px;margin:0 0 4px}
+  p.sub{color:#6b7280;font-size:13px;margin:0 0 22px;max-width:720px;line-height:1.6}
+  .scale{display:flex;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;max-width:920px;margin-bottom:6px}
+  .cell{flex:1;height:84px;display:flex;flex-direction:column;justify-content:flex-end;padding:7px 8px}
+  .cell .lv{font-size:11px;font-weight:700}
+  .cell .hex{font-size:10px;font-variant:tabular-nums;opacity:.85}
+  table{border-collapse:collapse;max-width:920px;width:100%;margin-top:18px;font-size:12.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb;vertical-align:top}
+  th{color:#6b7280;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .swatch{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px;border:1px solid rgba(0,0,0,.08)}
+  code{font-family:ui-monospace,monospace;background:rgba(0,0,0,.05);padding:1px 5px;border-radius:3px;font-size:11px}
+  .note{margin-top:18px;font-size:12px;color:#6b7280;line-height:1.7;max-width:720px}
+</style>
+</head>
+<body>
+<h1>侧边待办 · 主色刻度（macaron purple 基准）</h1>
+<p class="sub">沿用现有品牌紫 + 自定义颜色设计。<b>500 = 当前主色 #B58AD9</b>，<b>700 = 当前深色 #8F5EC0</b> 保持不变；其余 8 档按明度平滑插值。自定义颜色时同样以该色为 500 动态生成整条刻度。遵循 60-30-10：大面积中性灰白，紫色按档位精准点缀。</p>
+
+<div class="scale">
+  <div class="cell" style="background:#F8F4FC;color:#6b5b7a"><span class="lv">100</span><span class="hex">#F8F4FC</span></div>
+  <div class="cell" style="background:#EFE6F7;color:#6b5b7a"><span class="lv">200</span><span class="hex">#EFE6F7</span></div>
+  <div class="cell" style="background:#E1CCEF;color:#5b4a6a"><span class="lv">300</span><span class="hex">#E1CCEF</span></div>
+  <div class="cell" style="background:#CDA9E3;color:#4a3a5a"><span class="lv">400</span><span class="hex">#CDA9E3</span></div>
+  <div class="cell" style="background:#B58AD9;color:#fff"><span class="lv">500</span><span class="hex">#B58AD9 · 品牌</span></div>
+  <div class="cell" style="background:#A273CC;color:#fff"><span class="lv">600</span><span class="hex">#A273CC</span></div>
+  <div class="cell" style="background:#8F5EC0;color:#fff"><span class="lv">700</span><span class="hex">#8F5EC0 · 深</span></div>
+  <div class="cell" style="background:#74489B;color:#fff"><span class="lv">800</span><span class="hex">#74489B</span></div>
+  <div class="cell" style="background:#523468;color:#fff"><span class="lv">900</span><span class="hex">#523468</span></div>
+  <div class="cell" style="background:#2F1E3D;color:#fff"><span class="lv">1000</span><span class="hex">#2F1E3D</span></div>
+</div>
+
+<table>
+  <tr><th>档位</th><th>用途（不同元素）</th></tr>
+  <tr><td><span class="swatch" style="background:#F8F4FC"></span><code>100</code></td><td>极浅底纹 / hover 底 / 死线卡暖紫底（最弱）</td></tr>
+  <tr><td><span class="swatch" style="background:#EFE6F7"></span><code>200</code></td><td>选中态浅底：tab 选中底、AI 结论面板底、主题色块选中、徽标底</td></tr>
+  <tr><td><span class="swatch" style="background:#E1CCEF"></span><code>300</code></td><td>浅紫边框 / 分隔 / 禁用态</td></tr>
+  <tr><td><span class="swatch" style="background:#CDA9E3"></span><code>400</code></td><td>次要图标 / 装饰小点</td></tr>
+  <tr><td><span class="swatch" style="background:#B58AD9"></span><code>500</code></td><td><b>品牌主色</b>：＋按钮填充、AI✦ 完成态底、主操作填充、激活指示</td></tr>
+  <tr><td><span class="swatch" style="background:#A273CC"></span><code>600</code></td><td>主色 hover / 按压态</td></tr>
+  <tr><td><span class="swatch" style="background:#8F5EC0"></span><code>700</code></td><td><b>强调文字</b>：分组标题、激活 tab 文字、按钮文字、链接、截止时间紫、复制/保存等文字按钮</td></tr>
+  <tr><td><span class="swatch" style="background:#74489B"></span><code>800</code></td><td>深强调（高对比文字，少用）</td></tr>
+  <tr><td><span class="swatch" style="background:#523468"></span><code>900</code></td><td>备用深色</td></tr>
+  <tr><td><span class="swatch" style="background:#2F1E3D"></span><code>1000</code></td><td>备用最深（几乎不用）</td></tr>
+</table>
+
+<p class="note">说明：中性结构色（背景 #f9f9ff、文字 #181c23、次要 #717786、边框 #c1c6d7、灰底 #f2f2f7）维持不变，承担 60% 中性面。语义色红(死线/逾期)、绿(完成)固定不动。紫色仅在上表档位出现，避免“满屏紫”。<br>确认后我会：① 在 Models 里加 <code>accentShade(level)</code> 生成器（自定义色同样适用）；② 用对应档位替换各模块现有写法（activeAccent→500、activeAccentDeep→700、各浅底→100/200）。</p>
+</body>
+</html>

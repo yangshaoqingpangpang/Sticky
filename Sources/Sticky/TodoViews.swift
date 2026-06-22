@@ -163,34 +163,37 @@ struct TodoRow: View {
 
             // 主行
             HStack(alignment: .top, spacing: 10) {
-                // 勾选框 + 死线红色感叹号(竖排在勾选框下方)
-                VStack(spacing: 4) {
+                let cbLine: CGFloat = store.settings.sizeMode == .small ? 16 : 17
+                let metaLine: CGFloat = store.settings.sizeMode == .small ? 12 : 13
+                // 勾选框对齐标题首行、感叹号对齐时间行(两列行高+间距一致,保证水平对齐)
+                VStack(spacing: 3) {
                     RoundedRectangle(cornerRadius: 5)
                         .fill(todo.isDone ? Color.nuGreen : Color.clear)
-                        .frame(width: 16, height: 16)
+                        .frame(width: 14, height: 14)
                         .overlay(
                             RoundedRectangle(cornerRadius: 5)
                                 .stroke(todo.isDone ? Color.clear : Color.nuOutlineVariant, lineWidth: 1.5)
                         )
                         .overlay(
                             Image(systemName: "checkmark")
-                                .font(.system(size: 9, weight: .bold))
+                                .font(.system(size: 8, weight: .bold))
                                 .foregroundColor(.white)
                                 .opacity(todo.isDone ? 1 : 0)
                         )
+                        .frame(height: cbLine)
                     if todo.isSuperDeadline && !todo.isDone {
                         // 红色方块 + 白色感叹号,与勾选框同尺寸保持样式统一
                         RoundedRectangle(cornerRadius: 5)
                             .fill(deadlineRed)
-                            .frame(width: 16, height: 16)
+                            .frame(width: 14, height: 14)
                             .overlay(
                                 Image(systemName: "exclamationmark")
-                                    .font(.system(size: 10, weight: .heavy))
+                                    .font(.system(size: 8.5, weight: .heavy))
                                     .foregroundColor(.white)
                             )
+                            .frame(height: metaLine)
                     }
                 }
-                .padding(.top, 2)
 
                 // 内容
                 VStack(alignment: .leading, spacing: 3) {
@@ -234,9 +237,9 @@ struct TodoRow: View {
                     } else {
                         let superActive = todo.isSuperDeadline && !todo.isDone
                         let small = store.settings.sizeMode == .small
-                        let metaSize: CGFloat = small ? 11 : 12.5
+                        let metaSize: CGFloat = small ? 9.5 : 10.5
                         Text(todo.text)
-                            .font(.system(size: small ? 13 : 14, weight: superActive ? .semibold : .regular)).tracking(-0.1)
+                            .font(.system(size: small ? 13 : 14, weight: superActive ? .medium : .regular))
                             .foregroundColor(todo.isDone ? .nuOutline : .nuOnSurface)
                             .strikethrough(todo.isDone, color: .nuOutline)
                             .fixedSize(horizontal: false, vertical: true)

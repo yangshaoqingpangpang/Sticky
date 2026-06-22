@@ -15,59 +15,54 @@ struct HeaderView: View {
         Group {
             if isSmall { smallHeader } else { largeHeader }
         }
-        .padding(.horizontal, 16).padding(.bottom, isSmall ? 8 : 16)
+        .padding(.horizontal, 16).padding(.top, isSmall ? 8 : 14).padding(.bottom, isSmall ? 8 : 16)
         .onReceive(timer) { now = $0 }
     }
 
-    // 大尺寸:时间大字 + 下方日期行
+    // 大尺寸:日期+工作日(加粗左侧)、纪念日、时间 同一行,纵向居中对齐
     private var largeHeader: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(timeStr)
-                .font(.system(size: 48, weight: .semibold))
-                .monospacedDigit().tracking(-1.5)
+        HStack(alignment: .center, spacing: 8) {
+            Text(dateStrCompact)
+                .font(.system(size: 16, weight: .bold))
                 .foregroundColor(.nuOnSurface)
+                .fixedSize()
                 .contentShape(Rectangle())
-                .onTapGesture { handleTimeTap() }
-
-            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                dateButton(font: 13)
-                Spacer(minLength: 8)
-                anniversaryRow
-            }
-            .padding(.top, 10)
-            .contentShape(Rectangle())
-            .onTapGesture { onSettings() }
+                .onTapGesture { onSettings() }
+            Spacer(minLength: 6)
+            anniversaryRow
+            timeChip.fixedSize()
         }
     }
 
-    // 小尺寸:时间(缩小) + 日期 + 纪念日 同一行
+    // 小尺寸:日期 + 纪念日 + 时间 同一行
     private var smallHeader: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Text(timeStr)
-                .font(.system(size: 26, weight: .semibold))
-                .monospacedDigit().tracking(-0.5)
+        HStack(alignment: .center, spacing: 8) {
+            Text(dateStrCompact)
+                .font(.system(size: 13, weight: .bold))
                 .foregroundColor(.nuOnSurface)
-                .contentShape(Rectangle())
-                .onTapGesture { handleTimeTap() }
-            dateButton(font: 11, compact: true)
+                .lineLimit(1)
                 .contentShape(Rectangle())
                 .onTapGesture { onSettings() }
             Spacer(minLength: 4)
             anniversaryRow
+            timeChip
         }
         .padding(.top, 2)
     }
 
-    private func dateButton(font: CGFloat, compact: Bool = false) -> some View {
-        HStack(spacing: 5) {
-            Text(compact ? dateStrCompact : dateStr)
-                .font(.system(size: font))
-                .foregroundColor(.nuOnSurfaceVariant)
-                .lineLimit(1)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 9, weight: .medium))
+    // 时间:小字 + 时钟图标(对齐设计稿),连点 5 次出日志
+    private var timeChip: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "clock")
+                .font(.system(size: 10.5))
                 .foregroundColor(.nuOutline)
+            Text(timeStr)
+                .font(.system(size: isSmall ? 12 : 13, weight: .medium))
+                .monospacedDigit()
+                .foregroundColor(.nuOnSurfaceVariant)
         }
+        .contentShape(Rectangle())
+        .onTapGesture { handleTimeTap() }
     }
 
     @ViewBuilder private var anniversaryRow: some View {
@@ -110,10 +105,6 @@ struct HeaderView: View {
 
     private var timeStr: String {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: now)
-    }
-    private var dateStr: String {
-        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "yyyy年M月d日 · EEE"; return f.string(from: now)
     }
     private var dateStrCompact: String {
         let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN")
