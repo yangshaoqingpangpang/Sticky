@@ -163,21 +163,34 @@ struct TodoRow: View {
 
             // 主行
             HStack(alignment: .top, spacing: 10) {
-                // 勾选框:未完成空框,完成显示绿色对勾
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(todo.isDone ? Color.nuGreen : Color.clear)
-                    .frame(width: 16, height: 16)
-                    .overlay(
+                // 勾选框 + 死线红色感叹号(竖排在勾选框下方)
+                VStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(todo.isDone ? Color.nuGreen : Color.clear)
+                        .frame(width: 16, height: 16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(todo.isDone ? Color.clear : Color.nuOutlineVariant, lineWidth: 1.5)
+                        )
+                        .overlay(
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.white)
+                                .opacity(todo.isDone ? 1 : 0)
+                        )
+                    if todo.isSuperDeadline && !todo.isDone {
+                        // 红色方块 + 白色感叹号,与勾选框同尺寸保持样式统一
                         RoundedRectangle(cornerRadius: 5)
-                            .stroke(todo.isDone ? Color.clear : Color.nuOutlineVariant, lineWidth: 1.5)
-                    )
-                    .overlay(
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.white)
-                            .opacity(todo.isDone ? 1 : 0)
-                    )
-                    .padding(.top, 2)
+                            .fill(deadlineRed)
+                            .frame(width: 16, height: 16)
+                            .overlay(
+                                Image(systemName: "exclamationmark")
+                                    .font(.system(size: 10, weight: .heavy))
+                                    .foregroundColor(.white)
+                            )
+                    }
+                }
+                .padding(.top, 2)
 
                 // 内容
                 VStack(alignment: .leading, spacing: 3) {
@@ -228,13 +241,7 @@ struct TodoRow: View {
                             .strikethrough(todo.isDone, color: .nuOutline)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        HStack(spacing: 5) {
-                            // 死线红色感叹号:始终占位(无死线时透明),与日期同一行、各行水平对齐
-                            Image(systemName: "exclamationmark")
-                                .font(.system(size: metaSize, weight: .heavy))
-                                .foregroundColor(deadlineRed)
-                                .frame(width: 8)
-                                .opacity(superActive ? 1 : 0)
+                        HStack(spacing: 6) {
                             // 有截止只显示截止;日期定宽使各行时间/逾期对齐。已完成不显示逾期。无截止显示创建时间
                             if let dl = todo.deadline {
                                 let overdueDL = dl < Date() && !todo.isDone
