@@ -111,6 +111,7 @@ struct ContentView: View {
                 // 按钮（右上角，浮在拖拽区域上方）
                 HStack(spacing: 12) {
                     Spacer()
+                    // 截图待办:截图后新建一条带图片的空待办(无 AI 版不做大模型提取)
                     Button { AppDelegate.shared?.startScreenCapture() } label: {
                         Image(systemName: "camera.viewfinder")
                             .font(.system(size: 13, weight: .medium))

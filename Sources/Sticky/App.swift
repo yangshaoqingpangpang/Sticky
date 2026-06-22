@@ -70,7 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         createStatusItem()
         registerShortcut()
         startDeadlineChecker()
-        startAISearchTimer()
+        // 无 AI 版本:不启动 AI 自动检索定时器
 
         // 监听屏幕配置变化（插拔外接屏、分辨率改变）
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
@@ -361,10 +361,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             ScreenCaptureManager.shared.start { [weak self] image in
                 guard let self else { return }
-                // 配了大模型走视觉提取(异步),否则放图+兜底文案
-                Task { [weak self] in
-                    await self?.store.addTodosFromScreenshot(image)
-                }
+                // 无 AI 版本:不调用大模型提取,直接新建一条空待办并附上截图
+                DispatchQueue.main.async { self.store.addTodo(text: "", color: .red, images: [image]) }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.expand()
                 }

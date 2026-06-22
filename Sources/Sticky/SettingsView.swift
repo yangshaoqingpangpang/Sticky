@@ -31,7 +31,7 @@ struct SettingsView: View {
                         sectionLabel("纪念日")
                         EmbeddedCalendar(store: store)
                     }
-                    settingsCard { aiSection }
+                    // 无 AI 版本:移除大模型配置卡片
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
@@ -39,7 +39,6 @@ struct SettingsView: View {
             }
         }
         .background(Color.nuSurface)
-        .onAppear(perform: loadAIConfig)
         .alert("数据备份", isPresented: Binding(get: { backupAlert != nil }, set: { if !$0 { backupAlert = nil } })) {
             Button("好的", role: .cancel) { backupAlert = nil }
         } message: {

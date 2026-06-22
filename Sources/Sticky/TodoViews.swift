@@ -297,32 +297,8 @@ struct TodoRow: View {
                     .buttonStyle(.plain)
                 }
 
-                // AI 星标 + 三道杠 竖排(上下排列,更规整)
+                // 无 AI 版本:移除 AI 帮手 ✦ 图标,仅保留三道杠菜单
                 VStack(spacing: 7) {
-                    // AI 帮手按钮（未完成项显示）
-                    if !todo.isDone {
-                        let dismissed = todo.aiSearchState == .dismissed
-                        Button {
-                            guard !dismissed else { return }   // 已不采纳:图标可见但不再触发
-                            withAnimation(.easeOut(duration: 0.15)) { aiExpanded.toggle() }
-                            if aiExpanded, todo.aiSearchState == .idle || todo.aiSearchState == .failed {
-                                store.startAISearch(todo.id)
-                            }
-                        } label: {
-                            // 不采纳→灰底禁止符;检索完成→主题色背景+白图标;其余→灰底灰图标
-                            Image(systemName: dismissed ? "nosign" : "sparkles")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(dismissed ? .nuOutline : (aiResultReady ? .white : .nuOutline))
-                                .frame(width: 20, height: 20)
-                                .background(
-                                    Circle().fill(aiResultReady && !dismissed ? store.settings.activeAccent : Color.nuGray6)
-                                )
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help(dismissed ? "已不采纳" : "AI 帮手")
-                    }
-
                     // 三横线按钮（拖拽排序 + 点击菜单）
                     VStack(spacing: 2.5) {
                         ForEach(0..<3, id: \.self) { _ in
