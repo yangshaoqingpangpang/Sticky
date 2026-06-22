@@ -163,6 +163,8 @@ struct SettingsView: View {
             .contentShape(Rectangle())
             .onTapGesture { withAnimation(.easeOut(duration: 0.18)) { aiPromptExpanded.toggle() } }
 
+            Text("您可以自行总结工作习惯，自定义 prompt 来提效").font(.system(size: 9.5)).foregroundColor(.nuOutline)
+
             if aiPromptExpanded {
                 Text("用 {{todo}} 代表待办内容").font(.system(size: 9.5)).foregroundColor(.nuOutline)
                 TextEditor(text: $aiPrompt)

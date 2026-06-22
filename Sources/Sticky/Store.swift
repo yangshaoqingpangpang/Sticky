@@ -393,20 +393,44 @@ final class DataStore: ObservableObject {
     }
 
     /// 解析返回正文(OpenAI choices / Anthropic content 两种结构)
+    /// 通用多供应商正文提取。兼容:
+    /// - OpenAI 兼容 content 字符串(DeepSeek/Moonshot/OpenAI/智谱普通模型…)
+    /// - content 为数组分片(部分代理/供应商)
+    /// - 思考模型把可见答案塞 reasoning_content(GLM-4.5+/DeepSeek-R1/Qwen-thinking…)→ 兜底
+    /// - Anthropic content blocks
     private static func extractContent(_ data: Data, anthropic: Bool) -> String? {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        if anthropic {
-            if let content = obj["content"] as? [[String: Any]] {
-                return content.compactMap { $0["text"] as? String }.joined()
-            }
-        } else {
-            if let choices = obj["choices"] as? [[String: Any]],
-               let msg = choices.first?["message"] as? [String: Any],
-               let content = msg["content"] as? String {
-                return content
-            }
+        func clean(_ s: String?) -> String? {
+            guard let s = s?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
+            return s
         }
+        if anthropic {
+            if let blocks = obj["content"] as? [[String: Any]] {
+                let text = blocks.compactMap { $0["text"] as? String }.joined()
+                if let c = clean(text) { return c }
+            }
+            return nil
+        }
+        guard let choices = obj["choices"] as? [[String: Any]], let first = choices.first else { return nil }
+        let msg = first["message"] as? [String: Any] ?? [:]
+        // 1. content 字符串(最常见)
+        if let c = clean(msg["content"] as? String) { return c }
+        // 2. content 数组分片(content: [{type,text}, ...])
+        if let parts = msg["content"] as? [[String: Any]] {
+            if let c = clean(parts.compactMap { $0["text"] as? String }.joined()) { return c }
+        }
+        // 3. 思考模型兜底:可见答案在 reasoning_content
+        if let c = clean(msg["reasoning_content"] as? String) { return c }
+        // 4. 个别供应商放在 message.text
+        if let c = clean(msg["text"] as? String) { return c }
         return nil
+    }
+
+    /// 取 finish_reason 用于诊断(length=token 耗尽,stop=正常,等)
+    private static func finishReason(_ data: Data) -> String? {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choices = obj["choices"] as? [[String: Any]] else { return nil }
+        return choices.first?["finish_reason"] as? String
     }
 
     /// 纯文本对话(检索用),返回正文或 nil
@@ -433,7 +457,8 @@ final class DataStore: ObservableObject {
                 return nil
             }
             guard let content = Self.extractContent(data, anthropic: ep.anthropic) else {
-                applog("✗ HTTP 200 但解析正文失败")
+                // 诊断:打印 finish_reason 帮助定位(length=思考耗尽 token / 其它=格式问题)
+                applog("✗ HTTP 200 正文为空,finish_reason=\(Self.finishReason(data) ?? "?")")
                 return nil
             }
             applog("✓ HTTP 200,正文 \(content.count) 字")
@@ -465,7 +490,7 @@ final class DataStore: ObservableObject {
 
         let body: [String: Any]
         if ep.anthropic {
-            body = ["model": ep.model, "max_tokens": 1024, "messages": [[
+            body = ["model": ep.model, "max_tokens": 2048, "messages": [[
                 "role": "user",
                 "content": [
                     ["type": "text", "text": prompt],
@@ -473,7 +498,7 @@ final class DataStore: ObservableObject {
                 ],
             ]]]
         } else {
-            body = ["model": ep.model, "max_tokens": 1024, "messages": [[
+            body = ["model": ep.model, "max_tokens": 2048, "messages": [[
                 "role": "user",
                 "content": [
                     ["type": "text", "text": prompt],
@@ -670,7 +695,8 @@ final class DataStore: ObservableObject {
             }
             user = template
         }
-        guard let raw = await aiChatText(system: system, user: user, maxTokens: 600) else { return .failed }
+        // max_tokens 给大:思考模型(GLM-4.5+/DeepSeek-R1 等)会先消耗预算思考,留不够会导致 content 为空
+        guard let raw = await aiChatText(system: system, user: user, maxTokens: 3000) else { return .failed }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if !force && trimmed.uppercased().hasPrefix("SKIP") {
             return .skip
@@ -680,15 +706,31 @@ final class DataStore: ObservableObject {
     }
 
     private static func parseConclusionSource(_ raw: String) -> (conclusion: String, source: String) {
-        var conclusion = "", source = ""
-        for line in raw.split(separator: "\n", omittingEmptySubsequences: true) {
+        // 多行累积:遇到「结论」「来源」标记切换归属,后续无标记行归到当前段,避免多行结论被截断只剩首行
+        var conclusionLines: [String] = []
+        var sourceLines: [String] = []
+        enum Section { case none, conclusion, source }
+        var current: Section = .none
+        for line in raw.split(separator: "\n", omittingEmptySubsequences: false) {
             let l = line.trimmingCharacters(in: .whitespaces)
             if let r = l.range(of: "结论：") ?? l.range(of: "结论:") {
-                conclusion = String(l[r.upperBound...]).trimmingCharacters(in: .whitespaces)
+                current = .conclusion
+                let rest = String(l[r.upperBound...]).trimmingCharacters(in: .whitespaces)
+                if !rest.isEmpty { conclusionLines.append(rest) }
             } else if let r = l.range(of: "来源：") ?? l.range(of: "来源:") {
-                source = String(l[r.upperBound...]).trimmingCharacters(in: .whitespaces)
+                current = .source
+                let rest = String(l[r.upperBound...]).trimmingCharacters(in: .whitespaces)
+                if !rest.isEmpty { sourceLines.append(rest) }
+            } else {
+                switch current {
+                case .conclusion: conclusionLines.append(l)
+                case .source: sourceLines.append(l)
+                case .none: break
+                }
             }
         }
+        var conclusion = conclusionLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        let source = sourceLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         // 模型没按格式时,整段当结论
         if conclusion.isEmpty && source.isEmpty {
             conclusion = raw.trimmingCharacters(in: .whitespacesAndNewlines)
