@@ -20,7 +20,7 @@ struct TodoListView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 0) {
+                    LazyVStack(spacing: 9) {
                         ForEach(todos) { todo in
                             TodoRow(todo: todo, store: store, draggingTodoID: $draggingTodoID) { imgs, idx in
                                 viewingImages = imgs; viewingIndex = idx; showViewer = true
@@ -29,14 +29,9 @@ struct TodoListView: View {
                                 targetID: todo.id, store: store, draggingTodoID: $draggingTodoID
                             ))
                             .opacity(draggingTodoID == todo.id ? 0.4 : 1)
-                            // 死线行用整块暖色背景,连续两条之间需要透气以免视觉粘连
-                            .padding(.vertical, todo.isSuperDeadline && !todo.isDone ? 3 : 0)
-                            if todo.id != todos.last?.id, !todo.isSuperDeadline {
-                                Rectangle().fill(Color.nuOutlineVariant.opacity(0.35)).frame(height: 0.5).padding(.leading, 38)
-                            }
                         }
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 6)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
                 }
             }
 
@@ -161,17 +156,28 @@ struct TodoRow: View {
                     }
                 }
                 .frame(width: 32)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.top, 2)
                 .transition(.move(edge: .leading).combined(with: .opacity))
             }
 
             // 主行
             HStack(alignment: .top, spacing: 10) {
-                // 色块（死线项用左侧竖条代替，这里隐藏小点但保留 8pt 占位，保证文字左对齐一致）
-                Circle().fill(todo.color.color)
-                    .frame(width: 10, height: 10)
-                    .overlay(Circle().stroke(Color.black.opacity(0.06), lineWidth: 0.5))
-                    .opacity(todo.isSuperDeadline && !todo.isDone ? 0 : (todo.isDone ? 0.35 : 1))
-                    .padding(.top, 4)
+                // 勾选框:未完成空框,完成显示绿色对勾
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(todo.isDone ? Color.nuGreen : Color.clear)
+                    .frame(width: 16, height: 16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(todo.isDone ? Color.clear : Color.nuOutlineVariant, lineWidth: 1.5)
+                    )
+                    .overlay(
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                            .opacity(todo.isDone ? 1 : 0)
+                    )
+                    .padding(.top, 2)
 
                 // 内容
                 VStack(alignment: .leading, spacing: 3) {
@@ -214,22 +220,38 @@ struct TodoRow: View {
                         }.buttonStyle(.plain)
                     } else {
                         let superActive = todo.isSuperDeadline && !todo.isDone
+                        let small = store.settings.sizeMode == .small
+                        let metaSize: CGFloat = small ? 11 : 12.5
                         Text(todo.text)
-                            .font(.system(size: 13, weight: superActive ? .semibold : .regular)).tracking(-0.1)
+                            .font(.system(size: small ? 13 : 14, weight: superActive ? .semibold : .regular)).tracking(-0.1)
                             .foregroundColor(todo.isDone ? .nuOutline : .nuOnSurface)
                             .strikethrough(todo.isDone, color: .nuOutline)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        HStack(spacing: 6) {
-                            Text(relativeTime(todo.createdAt))
-                                .font(.system(size: 11))
-                                .foregroundColor(superActive ? deadlineRed : .nuOutline)
-                                .monospacedDigit()
+                        HStack(spacing: 5) {
+                            // 死线红色感叹号:始终占位(无死线时透明),与日期同一行、各行水平对齐
+                            Image(systemName: "exclamationmark")
+                                .font(.system(size: metaSize, weight: .heavy))
+                                .foregroundColor(deadlineRed)
+                                .frame(width: 8)
+                                .opacity(superActive ? 1 : 0)
+                            // 有截止只显示截止;日期定宽使各行时间/逾期对齐。已完成不显示逾期。无截止显示创建时间
                             if let dl = todo.deadline {
-                                let overdueDL = dl < Date()
-                                Text("· \(deadlineText(dl))\(superActive && overdueDL ? " · 逾期" : "")")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(todo.isDone ? Color(white: 0.6) : (superActive ? deadlineRed : (overdueDL ? Color.red.opacity(0.7) : store.settings.activeAccentDeep)))
+                                let overdueDL = dl < Date() && !todo.isDone
+                                let dlColor = todo.isDone ? Color(white: 0.6) : ((superActive || overdueDL) ? deadlineRed : store.settings.activeAccentDeep)
+                                Text(deadlineDate(dl))
+                                    .frame(width: 30, alignment: .leading)
+                                    .font(.system(size: metaSize, weight: .medium)).foregroundColor(dlColor).monospacedDigit()
+                                Text(deadlineTime(dl))
+                                    .font(.system(size: metaSize, weight: .medium)).foregroundColor(dlColor).monospacedDigit()
+                                if overdueDL {
+                                    Text("· 逾期")
+                                        .font(.system(size: metaSize, weight: .medium)).foregroundColor(dlColor)
+                                }
+                            } else {
+                                Text(relativeTime(todo.createdAt))
+                                    .font(.system(size: metaSize))
+                                    .foregroundColor(.nuOutline)
                                     .monospacedDigit()
                             }
                         }
@@ -265,65 +287,74 @@ struct TodoRow: View {
                     .buttonStyle(.plain)
                 }
 
-                // AI 帮手按钮（三横线左侧；未完成项显示）
-                if !todo.isDone {
-                    let dismissed = todo.aiSearchState == .dismissed
-                    Button {
-                        guard !dismissed else { return }   // 已不采纳:图标可见但不再触发
-                        withAnimation(.easeOut(duration: 0.15)) { aiExpanded.toggle() }
-                        if aiExpanded, todo.aiSearchState == .idle || todo.aiSearchState == .failed {
-                            store.startAISearch(todo.id)
+                // AI 星标 + 三道杠 竖排(上下排列,更规整)
+                VStack(spacing: 7) {
+                    // AI 帮手按钮（未完成项显示）
+                    if !todo.isDone {
+                        let dismissed = todo.aiSearchState == .dismissed
+                        Button {
+                            guard !dismissed else { return }   // 已不采纳:图标可见但不再触发
+                            withAnimation(.easeOut(duration: 0.15)) { aiExpanded.toggle() }
+                            if aiExpanded, todo.aiSearchState == .idle || todo.aiSearchState == .failed {
+                                store.startAISearch(todo.id)
+                            }
+                        } label: {
+                            // 不采纳→灰底禁止符;检索完成→主题色背景+白图标;其余→灰底灰图标
+                            Image(systemName: dismissed ? "nosign" : "sparkles")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(dismissed ? .nuOutline : (aiResultReady ? .white : .nuOutline))
+                                .frame(width: 20, height: 20)
+                                .background(
+                                    Circle().fill(aiResultReady && !dismissed ? store.settings.activeAccent : Color.nuGray6)
+                                )
+                                .contentShape(Rectangle())
                         }
-                    } label: {
-                        // 不采纳→灰底禁止符;检索完成→主题色背景+白图标;其余→灰底灰图标
-                        Image(systemName: dismissed ? "nosign" : "sparkles")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(dismissed ? .nuOutline : (aiResultReady ? .white : .nuOutline))
-                            .frame(width: 20, height: 20)
-                            .background(
-                                Circle().fill(aiResultReady && !dismissed ? store.settings.activeAccent : Color.nuGray6)
-                            )
-                            .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        .help(dismissed ? "已不采纳" : "AI 帮手")
                     }
-                    .buttonStyle(.plain)
-                    .help(dismissed ? "已不采纳" : "AI 帮手")
-                    .padding(.top, 4)
-                }
 
-                // 三横线按钮（拖拽排序 + 点击菜单）
-                VStack(spacing: 2.5) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 0.5)
-                            .fill(Color.nuOutlineVariant)
-                            .frame(width: 12, height: 1.5)
+                    // 三横线按钮（拖拽排序 + 点击菜单）
+                    VStack(spacing: 2.5) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: 0.5)
+                                .fill(Color.nuOutlineVariant)
+                                .frame(width: 12, height: 1.5)
+                        }
                     }
-                }
-                .frame(width: 18, height: 18)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.easeOut(duration: 0.15)) { slideOpen.toggle() }
-                }
-                .onDrag {
-                    draggingTodoID = todo.id
-                    return NSItemProvider(object: todo.id.uuidString as NSString)
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.easeOut(duration: 0.15)) { slideOpen.toggle() }
+                    }
+                    .onDrag {
+                        draggingTodoID = todo.id
+                        return NSItemProvider(object: todo.id.uuidString as NSString)
+                    }
                 }
                 .padding(.top, 4)
             }
-            .padding(.vertical, 10).padding(.horizontal, 10)
+            .padding(.vertical, 11).padding(.horizontal, 12)
             .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(todo.isSuperDeadline && !todo.isDone ? deadlineBG : (isHovered ? Color.nuGray6 : Color.clear))
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(todo.isSuperDeadline && !todo.isDone
+                          ? deadlineBG
+                          : (isHovered ? Color.nuGray6.opacity(0.55) : Color.white))
             )
             .overlay(alignment: .leading) {
-                if todo.isSuperDeadline && !todo.isDone {
-                    // 4px 红边齐左缘(Native Utility border-l-4)
-                    UnevenRoundedRectangle(topLeadingRadius: 8, bottomLeadingRadius: 8)
-                        .fill(deadlineRed)
-                        .frame(width: 4)
-                }
+                // 左侧色条:沿用待办颜色,死线用红(替代原内联色点)
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(todo.isSuperDeadline && !todo.isDone ? deadlineRed : todo.color.color)
+                    .frame(width: 3)
+                    .padding(.vertical, 9)
+                    .opacity(todo.isDone ? 0.35 : 1)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .opacity(todo.isDone ? 0.65 : 1)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(todo.isSuperDeadline && !todo.isDone ? deadlineRed.opacity(0.22) : Color(white: 0.92), lineWidth: 0.5)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .shadow(color: Color.black.opacity(todo.isDone ? 0 : 0.05), radius: 2.5, x: 0, y: 1)
+            .opacity(todo.isDone ? 0.7 : 1)
             .onTapGesture {
                 if slideOpen { withAnimation(.easeOut(duration: 0.15)) { slideOpen = false } }
                 else if !editing { withAnimation(.easeOut(duration: 0.15)) { store.toggleTodo(todo.id) } }
@@ -403,16 +434,18 @@ struct TodoRow: View {
         if d < 86400 { return "\(Int(d/3600))小时前" }
         let days = Int(d / 86400)
         if days < 7 { return "\(days)天前" }
-        let f = DateFormatter(); f.dateFormat = "M月d日"; return f.string(from: date)
+        let f = DateFormatter(); f.dateFormat = "M/d"; return f.string(from: date)
     }
 
-    private func deadlineText(_ date: Date) -> String {
-        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN")
+    private func deadlineDate(_ date: Date) -> String {
         let cal = Calendar.current
-        if cal.isDateInToday(date) { f.dateFormat = "今天 HH:mm" }
-        else if cal.isDateInTomorrow(date) { f.dateFormat = "明天 HH:mm" }
-        else { f.dateFormat = "M/d HH:mm" }
+        if cal.isDateInToday(date) { return "今天" }
+        if cal.isDateInTomorrow(date) { return "明天" }
+        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "M/d"
         return f.string(from: date)
+    }
+    private func deadlineTime(_ date: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: date)
     }
 }
 

@@ -1,0 +1,71 @@
+{
+  "" : {
+    "const-values" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Sticky-primary.swiftconstvalues",
+    "dependencies" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Sticky-primary.d",
+    "diagnostics" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Sticky-primary.dia",
+    "emit-module-dependencies" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Sticky-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Sticky-primary-emit-module.dia",
+    "pch" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Sticky-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Sticky-primary.swiftdeps"
+  },
+  "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/Sources/Sticky/AnniversaryView.swift" : {
+    "index-unit-output-path" : "/Sticky.build/Release/Sticky.build/Objects-normal/arm64/AnniversaryView.o",
+    "llvm-bc" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/AnniversaryView.bc",
+    "object" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/AnniversaryView.o"
+  },
+  "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/Sources/Sticky/App.swift" : {
+    "index-unit-output-path" : "/Sticky.build/Release/Sticky.build/Objects-normal/arm64/App.o",
+    "llvm-bc" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/App.bc",
+    "object" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/App.o"
+  },
+  "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/Sources/Sticky/ContentView.swift" : {
+    "index-unit-output-path" : "/Sticky.build/Release/Sticky.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/ContentView.o"
+  },
+  "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/Sources/Sticky/HeaderView.swift" : {
+    "index-unit-output-path" : "/Sticky.build/Release/Sticky.build/Objects-normal/arm64/HeaderView.o",
+    "llvm-bc" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/HeaderView.bc",
+    "object" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/HeaderView.o"
+  },
+  "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/Sources/Sticky/Logger.swift" : {
+    "index-unit-output-path" : "/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Logger.o",
+    "llvm-bc" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Logger.bc",
+    "object" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Logger.o"
+  },
+  "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/Sources/Sticky/Models.swift" : {
+    "index-unit-output-path" : "/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Models.o",
+    "llvm-bc" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Models.bc",
+    "object" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Models.o"
+  },
+  "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/Sources/Sticky/NotesView.swift" : {
+    "index-unit-output-path" : "/Sticky.build/Release/Sticky.build/Objects-normal/arm64/NotesView.o",
+    "llvm-bc" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/NotesView.bc",
+    "object" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/NotesView.o"
+  },
+  "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/Sources/Sticky/ScreenCapture.swift" : {
+    "index-unit-output-path" : "/Sticky.build/Release/Sticky.build/Objects-normal/arm64/ScreenCapture.o",
+    "llvm-bc" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/ScreenCapture.bc",
+    "object" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/ScreenCapture.o"
+  },
+  "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/Sources/Sticky/SettingsView.swift" : {
+    "index-unit-output-path" : "/Sticky.build/Release/Sticky.build/Objects-normal/arm64/SettingsView.o",
+    "llvm-bc" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/SettingsView.bc",
+    "object" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/SettingsView.o"
+  },
+  "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/Sources/Sticky/Store.swift" : {
+    "index-unit-output-path" : "/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Store.o",
+    "llvm-bc" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Store.bc",
+    "object" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/Store.o"
+  },
+  "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/Sources/Sticky/TodoViews.swift" : {
+    "index-unit-output-path" : "/Sticky.build/Release/Sticky.build/Objects-normal/arm64/TodoViews.o",
+    "llvm-bc" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/TodoViews.bc",
+    "object" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/TodoViews.o"
+  },
+  "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/Sticky.build/Release/Sticky.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/yangshaoqing/Desktop/AGI/边笺/Sticky/build/release/Build/Intermediates.noindex/Sticky.build/Release/Sticky.build/Objects-normal/arm64/GeneratedAssetSymbols.o"
+  }
+}

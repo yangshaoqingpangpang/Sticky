@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var aiKey = ""
     @State private var aiPrompt = ""
     @State private var aiPromptExpanded = false
+    @State private var aiEditExpanded = false
     @State private var aiLoaded = false
     @State private var aiTesting = false
     @State private var aiStatus: (ok: Bool, text: String)?
@@ -23,23 +24,21 @@ struct SettingsView: View {
             settingsHeader
             Rectangle().fill(Color.nuOutlineVariant.opacity(0.4)).frame(height: 0.5).padding(.horizontal, 16)
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    themeSection
-                    sectionDivider
-                    backupSection
-                    sectionDivider
-                    // 纪念日日历直接嵌入
-                    sectionLabel("纪念日").padding(.bottom, 6)
-                    EmbeddedCalendar(store: store)
-                    sectionDivider
-                    aiSection
+                VStack(alignment: .leading, spacing: 14) {
+                    settingsCard { themeSection }
+                    settingsCard { backupSection }
+                    settingsCard {
+                        sectionLabel("纪念日")
+                        EmbeddedCalendar(store: store)
+                    }
+                    settingsCard { aiSection }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .padding(.top, 12)
                 .padding(.bottom, 20)
             }
         }
-        .background(.background)
+        .background(Color.nuSurface)
         .onAppear(perform: loadAIConfig)
         .alert("数据备份", isPresented: Binding(get: { backupAlert != nil }, set: { if !$0 { backupAlert = nil } })) {
             Button("好的", role: .cancel) { backupAlert = nil }
@@ -86,8 +85,13 @@ struct SettingsView: View {
         }
     }
 
-    private var sectionDivider: some View {
-        Rectangle().fill(Color.nuOutlineVariant.opacity(0.4)).frame(height: 0.5).padding(.vertical, 16)
+    // 分组卡片容器:白底圆角 + 细边框
+    @ViewBuilder private func settingsCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) { content() }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(white: 0.93), lineWidth: 0.5))
     }
 
     // MARK: - AI 配置
@@ -124,9 +128,60 @@ struct SettingsView: View {
         aiStatus = (true, "已保存")
     }
 
+    private var aiConfigured: Bool {
+        !aiURL.trimmingCharacters(in: .whitespaces).isEmpty && !aiKey.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+    private var aiCustomPrompt: Bool {
+        let p = aiPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !p.isEmpty && p != DataStore.defaultSearchPrompt
+    }
+
     private var aiSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("AI 配置")
+            HStack {
+                sectionLabel("AI 配置")
+                Spacer()
+                if aiEditExpanded {
+                    Button("收起") { withAnimation(.easeOut(duration: 0.18)) { aiEditExpanded = false } }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(store.settings.activeAccentDeep)
+                        .buttonStyle(.plain)
+                }
+            }
+            if aiEditExpanded { aiEditor } else { aiSummaryRows }
+        }
+    }
+
+    // 收起态:紧凑摘要行(对齐设计稿),点击展开完整编辑器
+    private var aiSummaryRows: some View {
+        VStack(spacing: 0) {
+            aiRow(title: "大模型", value: aiProvider.label)
+            aiRowDivider
+            aiRow(title: "接口地址", value: aiConfigured ? "已配置" : "未配置", check: aiConfigured)
+            aiRowDivider
+            aiRow(title: "检索提示词", value: aiCustomPrompt ? "自定义" : "默认")
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.easeOut(duration: 0.18)) { aiEditExpanded = true } }
+    }
+
+    private func aiRow(title: String, value: String, check: Bool = false) -> some View {
+        HStack {
+            Text(title).font(.system(size: 13)).foregroundColor(.nuOnSurface)
+            Spacer()
+            Text(value).font(.system(size: 12)).foregroundColor(.nuOutline)
+            Image(systemName: check ? "checkmark" : "chevron.right")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(check ? Color.nuGreen : Color.nuOutlineVariant)
+        }
+        .padding(.vertical, 9)
+    }
+
+    private var aiRowDivider: some View { Rectangle().fill(Color.nuGray6).frame(height: 1) }
+
+    // 展开态:完整编辑器(供应商/模型名/接口/Key/提示词/保存/测试)
+    private var aiEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text("配置大模型供应商、接口地址与 API Key，保存后作为调用大模型的凭证。")
                 .font(.system(size: 10.5)).foregroundColor(.nuOutline)
                 .fixedSize(horizontal: false, vertical: true)
@@ -296,14 +351,18 @@ struct SettingsView: View {
                             .fill(AngularGradient(colors: [.red, .yellow, .green, .cyan, .blue, .purple, .red], center: .center))
                             .frame(width: 12, height: 12)
                     }
-                    .onTapGesture(count: 2) { openColorPanel() }
-                    .onTapGesture(count: 1) { store.settings.useCustomColor = true; store.save() }
+                    .gesture(
+                        ExclusiveGesture(
+                            TapGesture(count: 2).onEnded { openColorPanel() },
+                            TapGesture(count: 1).onEnded { store.settings.useCustomColor = true; store.save() }
+                        )
+                    )
                     Text("自定义")
                         .font(.system(size: 9))
                         .foregroundColor(.secondary)
                 }
             }.frame(maxWidth: .infinity)
-        }.padding(.top, 14)
+        }
     }
 
     private func themeButton(_ theme: AppTheme) -> some View {
@@ -319,10 +378,14 @@ struct SettingsView: View {
     }
 
     private func openColorPanel() {
+        // LSUIElement(配件)应用需先激活,否则系统颜色面板不会显示
+        NSApp.activate(ignoringOtherApps: true)
         let panel = NSColorPanel.shared
         panel.showsAlpha = false
+        panel.isFloatingPanel = true
+        panel.level = .floating
         panel.color = NSColor(store.settings.customColor ?? .gray)
-        panel.orderFront(nil)
+        panel.makeKeyAndOrderFront(nil)
         // 监听颜色变化
         if let old = colorPanelObserver { NotificationCenter.default.removeObserver(old) }
         colorPanelObserver = NotificationCenter.default.addObserver(
@@ -338,9 +401,9 @@ struct SettingsView: View {
         }
     }
 
-    // 一级:section 标题(放大加深,与二级字段标签拉开层级)
+    // 一级:section 标题(主题色,作为卡片分组标题)
     private func sectionLabel(_ text: String) -> some View {
-        Text(text).font(.system(size: 15, weight: .semibold)).foregroundColor(Color(white: 0.13))
+        Text(text).font(.system(size: 13, weight: .semibold)).foregroundColor(store.settings.activeAccentDeep)
     }
 }
 
@@ -352,6 +415,10 @@ struct EmbeddedCalendar: View {
     @State private var displayYear: Int
     @State private var selectedDay: DayInfo?
     @State private var showDetail = false
+    @FocusState private var ymField: YMField?
+    @State private var yearText = ""
+    @State private var monthText = ""
+    private enum YMField { case year, month }
 
     private let cal = Calendar.current
 
@@ -372,9 +439,29 @@ struct EmbeddedCalendar: View {
                             .foregroundColor(.nuOnSurfaceVariant).frame(width: 28, height: 28)
                     }.buttonStyle(.plain)
                     Spacer()
-                    Text("\(String(displayYear))年\(displayMonth)月")
-                        .font(.system(size: 14, weight: .semibold)).monospacedDigit()
-                        .foregroundColor(.nuOnSurface)
+                    // 可编辑年月:淡灰外框提示可手动改,方便提前很久设置纪念日
+                    HStack(spacing: 3) {
+                        TextField("", text: $yearText)
+                            .textFieldStyle(.plain).frame(width: 40).multilineTextAlignment(.center)
+                            .focused($ymField, equals: .year)
+                            .onSubmit { ymField = nil }
+                        Text("年")
+                        TextField("", text: $monthText)
+                            .textFieldStyle(.plain).frame(width: 20).multilineTextAlignment(.center)
+                            .focused($ymField, equals: .month)
+                            .onSubmit { ymField = nil }
+                        Text("月")
+                    }
+                    .font(.system(size: 14, weight: .semibold)).monospacedDigit()
+                    .foregroundColor(.nuOnSurface)
+                    .padding(.horizontal, 9).padding(.vertical, 3)
+                    .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color(white: 0.82), lineWidth: 1))
+                    .onChange(of: ymField) { _, f in if f == nil { syncYMText() } }
+                    .onChange(of: yearText) { _, _ in applyYM() }
+                    .onChange(of: monthText) { _, _ in applyYM() }
+                    .onAppear { syncYMText() }
+                    .onChange(of: displayYear) { _, _ in if ymField == nil { syncYMText() } }
+                    .onChange(of: displayMonth) { _, _ in if ymField == nil { syncYMText() } }
                     Spacer()
                     Button { withAnimation(.easeOut(duration: 0.1)) { nextMonth() } } label: {
                         Image(systemName: "chevron.right").font(.system(size: 13, weight: .medium))
@@ -481,6 +568,13 @@ struct EmbeddedCalendar: View {
 
     private func prevMonth() { if displayMonth == 1 { displayMonth = 12; displayYear -= 1 } else { displayMonth -= 1 } }
     private func nextMonth() { if displayMonth == 12 { displayMonth = 1; displayYear += 1 } else { displayMonth += 1 } }
+
+    private func syncYMText() { yearText = String(displayYear); monthText = String(displayMonth) }
+    // 边输入边跳转:仅当输入构成合法范围内的数字时才应用(如"2027"打到第4位才跳,不会在"2"时乱跳)
+    private func applyYM() {
+        if let y = Int(yearText.filter(\.isNumber)), (1970...2200).contains(y) { displayYear = y }
+        if let m = Int(monthText.filter(\.isNumber)), (1...12).contains(m) { displayMonth = m }
+    }
 }
 
 private let fixedHolidays: [String: String] = [

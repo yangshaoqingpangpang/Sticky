@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>侧边待办 · 多端互联原型图</title>
+<style>
+  :root{
+    --surface:#f9f9ff; --gray6:#f2f2f7; --outline:#717786; --outline-v:#c1c6d7;
+    --on:#181c23; --on-v:#414755; --red:#ff3b30; --red-bg:#fff2f2; --green:#34c759;
+    --accent:#b58ad9; --accent-deep:#8f5ec0; --accent-soft:#f3edfa;
+    --board:#e9eaf1;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;
+    background:var(--board);color:var(--on);padding:32px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .page-head{max-width:1200px;margin:0 auto 24px}
+  .page-head h1{font-size:22px;font-weight:700;letter-spacing:-.01em}
+  .page-head p{font-size:13px;color:var(--on-v);margin-top:6px}
+  .badges{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+  .badge{font-size:11px;padding:4px 10px;border-radius:999px;background:#fff;border:1px solid var(--outline-v);color:var(--on-v)}
+  .badge.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-deep);font-weight:600}
+  .section{max-width:1200px;margin:0 auto 16px}
+  .section-title{font-size:12px;font-weight:700;color:var(--outline);text-transform:uppercase;letter-spacing:.08em;margin:28px 0 12px}
+  .board{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+  .frame{width:300px;background:var(--surface);border-radius:14px;overflow:hidden;
+    box-shadow:0 8px 28px rgba(24,28,35,.12),0 1px 0 rgba(255,255,255,.6) inset;border:1px solid rgba(193,198,215,.5)}
+  .titlebar{height:30px;background:#fff;display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid var(--gray6)}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .r{background:#ff5f57}.y{background:#febc2e}.g{background:#28c840}
+  .tb-title{font-size:11px;color:var(--outline);margin-left:6px;font-weight:600}
+  .body{padding:14px}
+  .caption{max-width:300px;font-size:11.5px;color:var(--on-v);margin-top:10px}
+  .caption b{color:var(--accent-deep)}
+  /* shared bits */
+  .toprow{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .brand{font-size:14px;font-weight:700}
+  .syncpill{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--outline);background:var(--gray6);padding:3px 8px;border-radius:999px}
+  .syncdot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .syncdot.busy{background:var(--accent)}
+  .search{display:flex;align-items:center;gap:6px;background:var(--gray6);border-radius:8px;padding:7px 10px;margin-bottom:12px;font-size:11px;color:var(--outline)}
+  .grouplabel{font-size:10px;font-weight:700;color:var(--outline);letter-spacing:.04em;margin:14px 2px 8px;display:flex;align-items:center;gap:6px}
+  .count{background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px}
+  .todo{display:flex;align-items:flex-start;gap:9px;padding:9px 10px;border-radius:9px;background:#fff;border:1px solid var(--gray6);margin-bottom:8px}
+  .todo .mk{width:8px;height:8px;border-radius:50%;margin-top:4px;flex:0 0 auto}
+  .mk.red{background:#d97361}.mk.green{background:#80bf80}.mk.gray{background:#9a9a9a}.mk.acc{background:var(--accent)}
+  .todo .txt{font-size:12px;color:var(--on);flex:1}
+  .todo .meta{font-size:9.5px;color:var(--outline);margin-top:3px}
+  .tag{display:inline-block;font-size:9px;padding:1px 6px;border-radius:5px;background:var(--accent-soft);color:var(--accent-deep);margin-right:4px;font-weight:600}
+  .tag.from{background:#eef4ff;color:#3d6bd6}
+  /* approve card */
+  .inbox{background:var(--accent-soft);border:1px solid #e2d3f2;border-radius:10px;padding:10px;margin-bottom:8px}
+  .inbox .who{font-size:10px;color:var(--accent-deep);font-weight:700;margin-bottom:4px}
+  .inbox .txt{font-size:12px;color:var(--on);margin-bottom:9px}
+  .actions{display:flex;gap:8px}
+  .btn{font-size:11px;font-weight:600;padding:6px 14px;border-radius:7px;border:none;cursor:default}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.ghost{background:transparent;color:var(--outline);border:1px solid var(--outline-v)}
+  .btn.danger{background:transparent;color:var(--red);border:1px solid #f3c4c0}
+  .btn.block{width:100%;display:block;text-align:center;padding:9px}
+  /* qr */
+  .qr-wrap{display:flex;flex-direction:column;align-items:center;padding:18px 0 6px}
+  .qr{width:150px;height:150px;border-radius:12px;background:
+    repeating-linear-gradient(0deg,#181c23 0 6px,transparent 6px 12px),
+    repeating-linear-gradient(90deg,#181c23 0 6px,#fff 6px 12px);
+    background-blend-mode:multiply;border:6px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.1);position:relative}
+  .qr::after{content:"微信";position:absolute;inset:0;margin:auto;width:34px;height:34px;background:var(--green);
+    border-radius:8px;color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700;border:3px solid #fff}
+  .qr-tip{font-size:12px;color:var(--on-v);margin-top:14px;text-align:center}
+  .qr-sub{font-size:10.5px;color:var(--outline);margin-top:4px;text-align:center}
+  /* account */
+  .acct-top{display:flex;flex-direction:column;align-items:center;padding:6px 0 14px}
+  .avatar{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#b58ad9,#8f5ec0);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:700}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:11px 2px;border-bottom:1px solid var(--gray6);font-size:12px}
+  .row .k{color:var(--outline)}
+  .row .v{color:var(--on);font-weight:500}
+  .edit-field{display:flex;align-items:center;gap:6px;background:var(--gray6);border-radius:8px;padding:8px 10px;margin:10px 0;font-size:12px}
+  .edit-field input{border:none;background:transparent;outline:none;flex:1;font-size:12px;color:var(--on);font-family:inherit}
+  .pen{font-size:11px;color:var(--accent-deep)}
+  /* picker */
+  .composer{background:#fff;border:1px solid var(--outline-v);border-radius:9px;padding:9px 10px;font-size:12px;min-height:38px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft);color:var(--accent-deep);
+    font-size:10.5px;font-weight:600;padding:3px 7px;border-radius:999px;border:1px solid #e2d3f2}
+  .chip .x{font-size:11px;opacity:.6}
+  .cursor{color:var(--accent-deep);font-weight:700}
+  .popover{margin-top:8px;background:#fff;border:1px solid var(--outline-v);border-radius:11px;
+    box-shadow:0 10px 30px rgba(24,28,35,.16);overflow:hidden}
+  .pop-search{display:flex;align-items:center;gap:6px;padding:9px 11px;border-bottom:1px solid var(--gray6);font-size:11px;color:var(--outline)}
+  .pop-search input{border:none;outline:none;flex:1;font-size:11.5px;color:var(--on);font-family:inherit}
+  .person{display:flex;align-items:center;gap:9px;padding:8px 11px;font-size:12px}
+  .person:hover{background:var(--gray6)}
+  .pavatar{width:26px;height:26px;border-radius:50%;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .pname{flex:1}
+  .pname .sub{font-size:9.5px;color:var(--outline)}
+  .check{width:17px;height:17px;border-radius:5px;border:1.5px solid var(--outline-v);flex:0 0 auto}
+  .check.on{background:var(--accent);border-color:var(--accent);position:relative}
+  .check.on::after{content:"✓";color:#fff;font-size:11px;position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .pop-foot{padding:8px 11px;border-top:1px solid var(--gray6);display:flex;justify-content:space-between;align-items:center}
+  .pop-foot .sel{font-size:10.5px;color:var(--outline)}
+  /* member list */
+  .member{display:flex;align-items:center;gap:9px;padding:9px 4px;border-bottom:1px solid var(--gray6)}
+  .online{width:7px;height:7px;border-radius:50%;background:var(--green);margin-left:auto}
+  .online.off{background:var(--outline-v)}
+  .flow{max-width:1200px;margin:8px auto 0;background:#fff;border-radius:12px;padding:18px 20px;border:1px solid rgba(193,198,215,.5)}
+  .flow h3{font-size:13px;font-weight:700;margin-bottom:10px}
+  .flow-steps{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:11.5px;color:var(--on-v)}
+  .step{background:var(--gray6);border-radius:8px;padding:6px 11px}
+  .step.acc{background:var(--accent-soft);color:var(--accent-deep);font-weight:600}
+  .arrow{color:var(--outline)}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>侧边待办 · 多端互联原型图</h1>
+  <p>本期落地：仅 mac 端 · 微信扫码绑定云端账号 · 每分钟轮询同步。团队版（@指派 / 待批准）与企微为后续路线图。</p>
+  <div class="badges">
+    <span class="badge on">本期 · mac 端</span>
+    <span class="badge on">微信扫码绑定（unionid）</span>
+    <span class="badge on">每分钟轮询</span>
+    <span class="badge">团队版 · 后续</span>
+    <span class="badge">iOS · 后续</span>
+    <span class="badge">企微回调 · 暂不做</span>
+  </div>
+</div>
+
+<!-- 个人端 -->
+<div class="section">
+  <div class="section-title">个人端（本期 mac）</div>
+  <div class="board">
+
+    <!-- 1 扫码绑定 -->
+    <div>
+      <div class="frame">
+        <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">侧边待办 · 绑定账号</span></div>
+        <div class="body">
+          <div class="qr-wrap">
+            <div class="qr"></div>
+            <div class="qr-tip">微信扫一扫，绑定你的账号</div>
+            <div class="qr-sub">绑定后多端共享同一份待办<br>二维码 90 秒刷新</div>
+          </div>
+        </div>
+      </div>
+      <p class="caption"><b>① 扫码绑定</b>：未登录态。用个人微信扫码 → 云端取 <b>unionid</b> 作唯一 ID，首次带回微信昵称/头像。无需输入账号密码。</p>
+    </div>
+
+    <!-- 2 主界面 -->
+    <div>
+      <div class="frame">
+        <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">侧边待办</span></div>
+        <div class="body">
+          <div class="toprow">
+            <span class="brand">待办</span>
+            <span class="syncpill"><span class="syncdot"></span>1 分钟前同步</span>
+          </div>
+          <div class="search">🔍 搜索待办</div>
+
+          <div class="grouplabel">收件箱 · 待批准 <span class="count">2</span></div>
+          <div class="inbox">
+            <div class="who">@ 李工 指派给你</div>
+            <div class="txt">周五前出多端同步接口文档</div>
+            <div class="actions">
+              <button class="btn primary">批准</button>
+              <button class="btn danger">拒绝</button>
+            </div>
+          </div>
+
+          <div class="grouplabel">我的待办</div>
+          <div class="todo"><span class="mk red"></span><div><div class="txt">把个人域名迁到阿里云公司名下</div><div class="meta">今天 22:00</div></div></div>
+          <div class="todo"><span class="mk acc"></span><div><div class="txt">整理团队版原型</div><div class="meta"><span class="tag from">手机端同步</span></div></div></div>
+          <div class="todo"><span class="mk green"></span><div><div class="txt">回复客户邮件</div></div></div>
+        </div>
+      </div>
+      <p class="caption"><b>② 主界面</b>：顶部<b>同步状态</b>（小圆点 + 上次同步时间）。新增<b>「收件箱·待批准」</b>分区，别人指派 / 其他端同步先进这里。正式待办带来源标签。</p>
+    </div>
+
+    <!-- 3 同步中 + 批准态 -->
+    <div>
+      <div class="frame">
+        <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">侧边待办</span></div>
+        <div class="body">
+          <div class="toprow">
+            <span class="brand">待办</span>
+            <span class="syncpill"><span class="syncdot busy"></span>同步中…</span>
+          </div>
+          <div class="grouplabel">收件箱 · 待批准 <span class="count">1</span></div>
+          <div class="inbox">
+            <div class="who">@ 王经理 指派给你</div>
+            <div class="txt">下周一汇报 Q2 进展</div>
+            <div class="actions">
+              <button class="btn primary">批准</button>
+              <button class="btn danger">拒绝</button>
+            </div>
+          </div>
+          <div class="grouplabel">我的待办</div>
+          <div class="todo"><span class="mk acc"></span><div><div class="txt">周五前出多端同步接口文档</div><div class="meta"><span class="tag">已批准 · 来自 李工</span>周五 18:00</div></div></div>
+          <div class="todo"><span class="mk red"></span><div><div class="txt">把个人域名迁到阿里云公司名下</div><div class="meta">今天 22:00</div></div></div>
+        </div>
+      </div>
+      <p class="caption"><b>③ 批准后</b>：点「批准」→ 待办从收件箱落入正式列表，保留<b>来源标记</b>并回执给指派人；「拒绝」则丢弃 + 回执。顶部圆点变紫表示<b>正在轮询同步</b>。</p>
+    </div>
+
+    <!-- 4 账号页 -->
+    <div>
+      <div class="frame">
+        <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">侧边待办 · 账号</span></div>
+        <div class="body">
+          <div class="acct-top">
+            <div class="avatar">杨</div>
+          </div>
+          <div class="edit-field">
+            <input value="杨工（可改）">
+            <span class="pen">✎ 编辑</span>
+          </div>
+          <div class="row"><span class="k">唯一 ID</span><span class="v">wx_u****a93f</span></div>
+          <div class="row"><span class="k">绑定微信</span><span class="v">已绑定 ✓</span></div>
+          <div class="row"><span class="k">同步</span><span class="v">每分钟自动</span></div>
+          <div style="margin-top:16px">
+            <button class="btn ghost block">解除绑定</button>
+          </div>
+        </div>
+      </div>
+      <p class="caption"><b>④ 账号页</b>：微信头像 + <b>昵称可自行编辑</b>（与微信解耦）。唯一 ID 脱敏展示。提供解绑入口。</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- 团队端 -->
+<div class="section">
+  <div class="section-title">团队端（后续 · 团队版分支）</div>
+  <div class="board">
+
+    <!-- 5 @人员选择器 -->
+    <div>
+      <div class="frame">
+        <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">侧边待办 · 新建并指派</span></div>
+        <div class="body">
+          <div class="grouplabel">新待办</div>
+          <div class="composer">
+            周五前完成接口联调
+            <span class="chip">李工 <span class="x">×</span></span>
+            <span class="chip">小张 <span class="x">×</span></span>
+            <span class="cursor">@|</span>
+          </div>
+          <div class="popover">
+            <div class="pop-search">🔍 <input value="zh" placeholder="搜索成员（昵称/拼音）"></div>
+            <div class="person"><span class="pavatar" style="background:#d97361">李</span><span class="pname">李工<div class="sub">研发 · liwork</div></span><span class="check on"></span></div>
+            <div class="person"><span class="pavatar" style="background:#5c9ded">张</span><span class="pname">小张 (zhang)<div class="sub">研发 · 最近同步 2 分钟前</div></span><span class="check on"></span></div>
+            <div class="person"><span class="pavatar" style="background:#80bf80">赵</span><span class="pname">赵哲 (zhao)<div class="sub">产品 · 在线</div></span><span class="check"></span></div>
+            <div class="pop-foot"><span class="sel">已选 2 人</span><button class="btn primary">指派</button></div>
+          </div>
+        </div>
+      </div>
+      <p class="caption"><b>⑤ @指派选择器</b>：输入框打 <b>@</b> 弹出。<b>可搜索</b>（昵称/拼音）、<b>可多选</b>（勾选框），选中回填为 <b>chip</b>。点「指派」一次性派给多人。</p>
+    </div>
+
+    <!-- 6 团队成员清单 -->
+    <div>
+      <div class="frame">
+        <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">侧边待办 · 团队成员</span></div>
+        <div class="body">
+          <div class="toprow"><span class="brand">团队成员</span><span class="syncpill">共 5 人</span></div>
+          <div class="search">🔍 搜索成员</div>
+          <div class="member"><span class="pavatar" style="background:#d97361">李</span><span class="pname">李工<div class="sub" style="font-size:9.5px;color:var(--outline)">研发</div></span><span class="online"></span></div>
+          <div class="member"><span class="pavatar" style="background:#5c9ded">张</span><span class="pname">小张<div class="sub" style="font-size:9.5px;color:var(--outline)">研发</div></span><span class="online"></span></div>
+          <div class="member"><span class="pavatar" style="background:#80bf80">赵</span><span class="pname">赵哲<div class="sub" style="font-size:9.5px;color:var(--outline)">产品</div></span><span class="online off"></span></div>
+          <div class="member"><span class="pavatar" style="background:#c79a3a">王</span><span class="pname">王经理<div class="sub" style="font-size:9.5px;color:var(--outline)">管理</div></span><span class="online"></span></div>
+          <div class="member"><span class="pavatar" style="background:#8f5ec0">陈</span><span class="pname">陈晨<div class="sub" style="font-size:9.5px;color:var(--outline)">设计</div></span><span class="online off"></span></div>
+        </div>
+      </div>
+      <p class="caption"><b>⑥ 团队成员清单</b>：同团队的唯一 ID 列表（头像 + 昵称 + 在线/最近同步），是 @选择器的数据源。</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- 数据流 -->
+<div class="section">
+  <div class="section-title">同步数据流（每分钟轮询）</div>
+  <div class="flow">
+    <h3>个人多端同步</h3>
+    <div class="flow-steps">
+      <span class="step">mac / iOS 客户端</span><span class="arrow">— 每分钟 →</span>
+      <span class="step acc">GET /api/sync?uid&since=cursor</span><span class="arrow">→</span>
+      <span class="step">云端按 owner_uid 取增量</span><span class="arrow">→</span>
+      <span class="step">本端合并：approved 进列表 / pending 进收件箱</span>
+    </div>
+    <h3 style="margin-top:16px">团队指派（后续）</h3>
+    <div class="flow-steps">
+      <span class="step">指派人 @多人</span><span class="arrow">→</span>
+      <span class="step acc">POST /api/todos (source=assigned)</span><span class="arrow">→</span>
+      <span class="step">被指派人下次轮询拉到</span><span class="arrow">→</span>
+      <span class="step">进「待批准」</span><span class="arrow">→</span>
+      <span class="step acc">本人批准</span><span class="arrow">→</span>
+      <span class="step">进正式列表 + 回执</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

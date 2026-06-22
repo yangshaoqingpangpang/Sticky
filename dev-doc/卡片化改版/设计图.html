@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>侧边待办 · 卡片化改版设计图</title>
+<style>
+  :root{
+    --surface:#f9f9ff; --gray6:#f2f2f7; --outline:#717786; --outline-v:#c1c6d7;
+    --on:#181c23; --on-v:#414755; --red:#ff3b30; --red-bg:#fff2f2; --green:#34c759;
+    --accent:#b58ad9; --accent-deep:#8f5ec0; --accent-soft:#f3edfa; --board:#e9eaf1;
+    --c-red:#d97361; --c-green:#80bf80; --c-gray:#9a9a9a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;
+    background:var(--board);color:var(--on);padding:32px;-webkit-font-smoothing:antialiased}
+  .head{max-width:1280px;margin:0 auto 8px}
+  .head h1{font-size:22px;font-weight:700;letter-spacing:-.01em}
+  .head p{font-size:13px;color:var(--on-v);margin-top:6px;line-height:1.55}
+  .sec-title{max-width:1280px;margin:30px auto 12px;font-size:12px;font-weight:700;color:var(--outline);text-transform:uppercase;letter-spacing:.08em}
+  .board{max-width:1280px;margin:0 auto;display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+  .frame{width:320px;background:var(--surface);border-radius:14px;overflow:hidden;
+    box-shadow:0 8px 28px rgba(24,28,35,.12);border:1px solid rgba(193,198,215,.5)}
+  .titlebar{height:30px;background:#fff;display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid var(--gray6)}
+  .dot{width:11px;height:11px;border-radius:50%}.r{background:#ff5f57}.y{background:#febc2e}.g{background:#28c840}
+  .tb-title{font-size:11px;color:var(--outline);margin-left:6px;font-weight:600}
+  .body{padding:12px}
+  .caption{width:320px;font-size:11.5px;color:var(--on-v);margin-top:10px;line-height:1.55}
+  .caption b{color:var(--accent-deep)}
+
+  /* header + tabs */
+  .apphead{display:flex;align-items:baseline;justify-content:space-between;padding:2px 2px 10px}
+  .date{font-size:13px;font-weight:600}
+  .time{font-size:11px;color:var(--outline);font-variant-numeric:tabular-nums}
+  .headcam{font-size:15px;color:var(--outline)}
+  .tabs{display:flex;gap:4px;margin-bottom:10px}
+  .tab{font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;color:var(--outline)}
+  .tab.on{background:var(--accent-soft);color:var(--accent-deep)}
+  .toolbar{display:flex;gap:8px;margin-bottom:12px}
+  .searchbox{flex:1;display:flex;align-items:center;gap:6px;background:var(--gray6);border-radius:9px;padding:8px 10px;font-size:11.5px;color:var(--outline)}
+  .iconbtn{width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;flex:0 0 auto}
+  .iconbtn.ghost{background:var(--gray6);color:var(--outline)}
+
+  /* TODO CARD — 核心改动 */
+  .card{position:relative;background:#fff;border-radius:12px;padding:11px 12px 11px 14px;margin-bottom:9px;
+    border:1px solid #eef0f5;box-shadow:0 1px 3px rgba(24,28,35,.05)}
+  .card::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--bar,var(--c-gray))}
+  .card.red::before{background:var(--c-red)}.card.green::before{background:var(--c-green)}.card.acc::before{background:var(--accent)}
+  .card-top{display:flex;align-items:flex-start;gap:8px}
+  .ctext{flex:1;font-size:13px;color:var(--on);line-height:1.45}
+  .ai{width:22px;height:22px;border-radius:7px;background:var(--accent-soft);color:var(--accent-deep);
+    display:flex;align-items:center;justify-content:center;font-size:12px;flex:0 0 auto}
+  .cmeta{display:flex;align-items:center;gap:6px;margin-top:7px;flex-wrap:wrap}
+  .mtime{font-size:10.5px;color:var(--outline);font-variant-numeric:tabular-nums}
+  .mtime.over{color:var(--red);font-weight:600}
+  .ctag{font-size:9.5px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--gray6);color:var(--on-v);margin-left:auto}
+  .ctag.work{background:#eef4ff;color:#3d6bd6}
+
+  /* 死线卡片：整卡暖红 */
+  .card.deadline{background:var(--red-bg);border-color:#f7d5d2}
+  .card.deadline .ctext{font-weight:600}
+  .ddl-flag{font-size:9px;font-weight:700;color:#fff;background:var(--red);padding:1px 6px;border-radius:5px}
+
+  /* 已完成卡片：弱化 */
+  .card.done{background:#fbfbfd;border-color:#f0f0f4;box-shadow:none}
+  .card.done .ctext{color:var(--outline);text-decoration:line-through}
+  .card.done::before{opacity:.3}
+  .checkbox{width:17px;height:17px;border-radius:6px;border:1.5px solid var(--outline-v);flex:0 0 auto;margin-top:1px}
+  .checkbox.on{background:var(--green);border-color:var(--green);position:relative}
+  .checkbox.on::after{content:"✓";color:#fff;font-size:11px;position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+
+  /* AI 展开（结论/来源）卡内嵌 */
+  .ai-panel{margin-top:9px;background:var(--accent-soft);border-radius:9px;padding:9px 10px}
+  .ai-line{display:flex;gap:6px;font-size:10.5px;margin-bottom:5px}
+  .ai-line:last-child{margin-bottom:0}
+  .ai-k{font-weight:700;color:var(--accent-deep);flex:0 0 auto}
+  .ai-v{color:var(--on-v);line-height:1.5}
+  .ai-foot{display:flex;justify-content:flex-end;margin-top:6px}
+  .ai-foot span{font-size:9.5px;color:var(--outline)}
+
+  /* hover 浮现操作 */
+  .hover-actions{position:absolute;top:8px;right:10px;display:flex;gap:4px}
+  .ha{font-size:9.5px;padding:3px 8px;border-radius:6px;background:#fff;border:1px solid var(--outline-v);color:var(--outline)}
+  .ha.del{color:var(--red);border-color:#f3c4c0}
+  .ha.ddl{color:#fff;background:var(--red);border-color:var(--red)}
+  .hint-tag{position:absolute;top:-9px;right:8px;font-size:9px;background:var(--accent-deep);color:#fff;padding:2px 7px;border-radius:6px}
+
+  .grouplabel{font-size:10px;font-weight:700;color:var(--outline);letter-spacing:.04em;margin:6px 2px 8px}
+  .section-divider{height:1px;background:var(--outline-v);opacity:.4;margin:14px 0 12px}
+
+  /* 片段卡片 */
+  .snip{display:flex;align-items:center;gap:8px;background:#fff;border-radius:10px;padding:10px 12px;margin-bottom:8px;border:1px solid #eef0f5;box-shadow:0 1px 3px rgba(24,28,35,.05)}
+  .snip .stext{flex:1;font-size:12px}
+  .snip .copy{font-size:10px;color:var(--accent-deep);font-weight:600}
+
+  /* 笔记卡片 */
+  .note{position:relative;background:#fff;border-radius:12px;padding:12px 13px 12px 15px;margin-bottom:10px;border:1px solid #eef0f5;box-shadow:0 1px 3px rgba(24,28,35,.05)}
+  .note::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--accent)}
+  .note .ntitle{font-size:13px;font-weight:600}
+  .note .nbody{font-size:11px;color:var(--on-v);margin-top:5px;line-height:1.5}
+  .note .nfoot{display:flex;justify-content:space-between;margin-top:8px;font-size:9.5px;color:var(--outline)}
+
+  /* 纪念日卡片 */
+  .anni{position:relative;background:#fff;border-radius:12px;padding:12px 13px;margin-bottom:9px;border:1px solid #eef0f5;box-shadow:0 1px 3px rgba(24,28,35,.05);display:flex;align-items:center;gap:12px}
+  .anni .big{font-size:26px;font-weight:700;color:var(--accent-deep);font-variant-numeric:tabular-nums;line-height:1}
+  .anni .big small{font-size:11px;font-weight:600;color:var(--outline);display:block;margin-top:2px}
+  .anni .ainfo{flex:1}
+  .anni .aname{font-size:13px;font-weight:600}
+  .anni .adate{font-size:10.5px;color:var(--outline);margin-top:3px}
+
+  /* 设置分组卡片 */
+  .settings-card{background:#fff;border-radius:12px;padding:6px 14px;margin-bottom:12px;border:1px solid #eef0f5;box-shadow:0 1px 3px rgba(24,28,35,.05)}
+  .scard-title{font-size:11px;font-weight:700;color:var(--accent-deep);padding:10px 0 4px}
+  .srow{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--gray6);font-size:12px}
+  .srow:first-of-type{border-top:none}
+  .srow .sk{color:var(--on)}
+  .srow .sv{color:var(--outline);font-size:11px}
+  .swatches{display:flex;gap:7px;padding:8px 0}
+  .sw{width:22px;height:22px;border-radius:50%}
+  .sw.on{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--accent-deep)}
+</style>
+</head>
+<body>
+
+<div class="head">
+  <h1>侧边待办 · 卡片化改版设计图</h1>
+  <p>把现有「分割线列表」改成<b style="color:var(--accent-deep)">每条一张卡片</b>：左侧色条沿用待办颜色，死线卡整卡暖红，已完成卡弱化，AI 结论内嵌展开。仅设计稿，未改代码。</p>
+</div>
+
+<div class="sec-title">主工作区 · 待办（核心改动）</div>
+<div class="board">
+
+  <!-- 待办列表 -->
+  <div>
+    <div class="frame">
+      <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">侧边待办</span></div>
+      <div class="body">
+        <div class="apphead"><span class="date">6月22日 周一</span><span style="display:flex;align-items:center;gap:10px"><span class="headcam" title="截屏待办">⊙</span><span class="time">14:32</span></span></div>
+        <div class="tabs"><span class="tab on">待办事项</span><span class="tab">笔记</span></div>
+        <div class="toolbar">
+          <div class="searchbox">🔍 搜索待办、片段…</div>
+          <div class="iconbtn">＋</div>
+        </div>
+
+        <!-- 死线卡 -->
+        <div class="card deadline red">
+          <div class="card-top">
+            <div class="checkbox"></div>
+            <div class="ctext">周五前出多端同步接口文档</div>
+            <div class="ai">✦</div>
+          </div>
+          <div class="cmeta"><span class="ddl-flag">死线</span><span class="mtime over">周五 18:00 · 逾期</span><span class="ctag work">工作</span></div>
+        </div>
+
+        <!-- 普通卡 + AI 展开 -->
+        <div class="card red">
+          <div class="card-top">
+            <div class="checkbox"></div>
+            <div class="ctext">把个人域名迁到阿里云公司名下</div>
+            <div class="ai">✦</div>
+          </div>
+          <div class="cmeta"><span class="mtime">今天 22:00</span><span class="ctag work">工作</span></div>
+          <div class="ai-panel">
+            <div class="ai-line"><span class="ai-k">结论</span><span class="ai-v">需变更持有者信息（个人转企业）+ 账号间转移 + 重新企业备案，备案约 3-20 个工作日。</span></div>
+            <div class="ai-line"><span class="ai-k">来源</span><span class="ai-v">阿里云域名服务帮助文档、工信部备案管理办法。</span></div>
+            <div class="ai-foot"><span>⊗ 不采纳</span></div>
+          </div>
+        </div>
+
+        <!-- 普通卡 + hover 操作 -->
+        <div class="card green">
+          <span class="hint-tag">hover 浮现</span>
+          <div class="hover-actions"><span class="ha">修改</span><span class="ha ddl">死线</span><span class="ha del">删除</span></div>
+          <div class="card-top">
+            <div class="checkbox"></div>
+            <div class="ctext">回复客户邮件</div>
+          </div>
+          <div class="cmeta"><span class="mtime">2 小时前</span></div>
+        </div>
+
+        <!-- 已完成卡 -->
+        <div class="card done">
+          <div class="card-top">
+            <div class="checkbox on"></div>
+            <div class="ctext">整理团队版原型</div>
+          </div>
+          <div class="cmeta"><span class="mtime">昨天完成</span></div>
+        </div>
+
+        <!-- 常用片段：与待办拼接在同一主页面（待办下方） -->
+        <div class="section-divider"></div>
+        <div class="grouplabel" style="display:flex;justify-content:space-between"><span>常用片段 · 点击即复制</span><span style="color:var(--outline)">6 条</span></div>
+        <div class="snip"><span class="stext">aragonesdeliz@gmail.com</span><span class="copy">复制</span></div>
+        <div class="snip"><span class="stext">公司地址：北京市朝阳区…</span><span class="copy">复制</span></div>
+        <div class="snip"><span class="stext">备案号 京ICP备…</span><span class="copy">复制</span></div>
+        <div class="toolbar" style="margin-top:4px">
+          <div class="searchbox">＋ 输入片段内容…</div>
+          <div class="iconbtn">↵</div>
+        </div>
+      </div>
+    </div>
+    <p class="caption"><b>主页面 = 待办 + 常用片段拼接</b>（同一面板，片段在待办下方，沿用现有结构）。待办卡片：① 左色条沿用现有颜色（红/绿/灰）。② <b>死线</b>=整卡暖红 + 角标。③ AI ✦ 点开 → 卡内嵌「结论/来源」。④ hover 浮现 修改/死线/删除（替代左滑）。⑤ 完成卡弱化 + 删除线。<b>片段</b>同样卡片化，右侧「复制」更明确。</p>
+  </div>
+
+  <!-- 笔记 -->
+  <div>
+    <div class="frame">
+      <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">侧边待办</span></div>
+      <div class="body">
+        <div class="apphead"><span class="date">6月22日 周一</span><span class="time">14:32</span></div>
+        <div class="tabs"><span class="tab">待办事项</span><span class="tab on">笔记</span></div>
+        <div class="toolbar"><div class="searchbox">🔍 搜索笔记</div><div class="iconbtn">＋</div></div>
+        <div class="note">
+          <div class="ntitle">多端互联方案要点</div>
+          <div class="nbody">微信扫码绑定 unionid；每分钟轮询；待批准流……</div>
+          <div class="nfoot"><span>128 字</span><span>1 小时前</span></div>
+        </div>
+        <div class="note">
+          <div class="ntitle">客户沟通记录</div>
+          <div class="nbody">王经理希望周一汇报 Q2 进展，重点放在……</div>
+          <div class="nfoot"><span>64 字</span><span>昨天</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="caption"><b>笔记</b>：本来就接近卡片，统一圆角/阴影/左紫条，与待办卡视觉一致。</p>
+  </div>
+
+</div>
+
+<div class="sec-title">其他页面 · 同步卡片化</div>
+<div class="board">
+
+  <!-- 纪念日 -->
+  <div>
+    <div class="frame">
+      <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">侧边待办 · 纪念日</span></div>
+      <div class="body">
+        <div class="apphead"><span class="date">纪念日</span><span class="time">‹ 返回</span></div>
+        <div class="grouplabel">即将到来</div>
+        <div class="anni"><div class="big">12<small>天后</small></div><div class="ainfo"><div class="aname">公司年会</div><div class="adate">7月4日 · 周六</div></div></div>
+        <div class="anni"><div class="big">28<small>天后</small></div><div class="ainfo"><div class="aname">项目交付节点</div><div class="adate">7月20日 · 周一</div></div></div>
+        <div class="grouplabel" style="margin-top:14px">查看日历 → 月视图（保留现有日历）</div>
+      </div>
+    </div>
+    <p class="caption"><b>纪念日</b>：顶部加「即将到来」倒计时卡片（大数字 + 名称），保留下方月历。一眼看到最近的日子。</p>
+  </div>
+
+  <!-- 设置 -->
+  <div>
+    <div class="frame">
+      <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">侧边待办 · 设置</span></div>
+      <div class="body">
+        <div class="apphead"><span class="date">设置</span><span class="time">‹ 返回</span></div>
+        <div class="settings-card">
+          <div class="scard-title">外观</div>
+          <div class="srow"><span class="sk">主题色</span></div>
+          <div class="swatches"><span class="sw on" style="background:#b58ad9"></span><span class="sw" style="background:#59c7bd"></span><span class="sw" style="background:#6bca8e"></span><span class="sw" style="background:#f48c14"></span><span class="sw" style="background:#8c8c93"></span></div>
+          <div class="srow"><span class="sk">窗口尺寸</span><span class="sv">大 ›</span></div>
+        </div>
+        <div class="settings-card">
+          <div class="scard-title">AI 配置</div>
+          <div class="srow"><span class="sk">大模型</span><span class="sv">智谱 GLM ›</span></div>
+          <div class="srow"><span class="sk">接口地址</span><span class="sv">已配置 ✓</span></div>
+          <div class="srow"><span class="sk">检索提示词</span><span class="sv">自定义 ›</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="caption"><b>设置</b>：把零散设置项收进<b>分组卡片</b>（外观 / AI 配置 / 节日…），层次更清楚。</p>
+  </div>
+
+</div>
+
+</body>
+</html>

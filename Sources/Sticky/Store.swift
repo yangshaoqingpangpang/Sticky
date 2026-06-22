@@ -80,19 +80,29 @@ final class DataStore: ObservableObject {
 
     // MARK: Todos
 
-    func addTodo(text: String, color: TodoColor, images: [NSImage], deadline: Date? = nil) {
+    func addTodo(text: String, color: TodoColor, images: [NSImage], deadline: Date? = nil, aiState: AISearchState = .idle) {
         var names: [String] = []
         for img in images.prefix(3) {
             let name = UUID().uuidString + ".jpg"
             if saveImage(img, name: name) { names.append(name) }
         }
-        todos.append(Todo(text: text, color: color, imageNames: names, deadline: deadline))
+        var todo = Todo(text: text, color: color, imageNames: names, deadline: deadline)
+        todo.aiSearchState = aiState
+        todos.append(todo)
         save()
     }
 
     func updateTodo(_ id: UUID, text: String? = nil, color: TodoColor? = nil, deadline: Date?? = nil) {
         guard let i = todos.firstIndex(where: { $0.id == id }) else { return }
-        if let t = text { todos[i].text = t }
+        if let t = text {
+            // 文本被手动编辑 → 重置 AI 状态重新检索(含被编辑的截图占位/已不采纳项)
+            if t != todos[i].text {
+                todos[i].aiSearchState = .idle
+                todos[i].aiConclusion = nil
+                todos[i].aiSource = nil
+            }
+            todos[i].text = t
+        }
         if let c = color { todos[i].color = c }
         if let d = deadline { todos[i].deadline = d }
         save()
@@ -578,11 +588,11 @@ final class DataStore: ObservableObject {
                     self.addTodo(text: item.text, color: .red, images: idx == 0 ? [image] : [], deadline: item.deadline)
                 }
             case .success:
-                self.addTodo(text: "未从截图中识别到待办，请手动编辑。", color: .red, images: [image])
+                self.addTodo(text: "未从截图中识别到待办，请手动编辑。", color: .red, images: [image], aiState: .dismissed)
             case .visionUnsupported:
-                self.addTodo(text: "您配置的模型不支持视觉，提取信息失败。", color: .red, images: [image])
+                self.addTodo(text: "您配置的模型不支持视觉，提取信息失败。", color: .red, images: [image], aiState: .dismissed)
             case .network(let msg):
-                self.addTodo(text: "网络错误，提取失败：\(msg)", color: .red, images: [image])
+                self.addTodo(text: "网络错误，提取失败：\(msg)", color: .red, images: [image], aiState: .dismissed)
             }
         }
     }

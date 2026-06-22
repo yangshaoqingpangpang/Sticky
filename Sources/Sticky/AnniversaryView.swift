@@ -45,6 +45,10 @@ struct AnniversaryView: View {
     @State private var displayYear: Int
     @State private var selectedDay: DayInfo?
     @State private var showDetail = false
+    @FocusState private var ymField: YMField?
+    @State private var yearText = ""
+    @State private var monthText = ""
+    private enum YMField { case year, month }
 
     private let cal = Calendar.current
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
@@ -88,8 +92,26 @@ struct AnniversaryView: View {
                     }
                     .buttonStyle(.plain)
                     Spacer()
-                    Text("\(String(displayYear))年\(displayMonth)月")
-                        .font(.system(size: 15, weight: .semibold)).monospacedDigit()
+                    // 可编辑年月:直接改年/月,方便提前很久设置纪念日。淡灰外框提示可手动编辑
+                    HStack(spacing: 3) {
+                        TextField("", text: $yearText)
+                            .textFieldStyle(.plain).frame(width: 42).multilineTextAlignment(.center)
+                            .focused($ymField, equals: .year)
+                            .onSubmit { commitYearMonth() }
+                        Text("年")
+                        TextField("", text: $monthText)
+                            .textFieldStyle(.plain).frame(width: 22).multilineTextAlignment(.center)
+                            .focused($ymField, equals: .month)
+                            .onSubmit { commitYearMonth() }
+                        Text("月")
+                    }
+                    .font(.system(size: 15, weight: .semibold)).monospacedDigit()
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color(white: 0.82), lineWidth: 1))
+                    .onChange(of: ymField) { _, f in if f == nil { commitYearMonth() } }
+                    .onAppear { syncYMText() }
+                    .onChange(of: displayYear) { _, _ in if ymField == nil { syncYMText() } }
+                    .onChange(of: displayMonth) { _, _ in if ymField == nil { syncYMText() } }
                     Spacer()
                     Button { withAnimation(.easeOut(duration: 0.15)) { nextMonth() } } label: {
                         Image(systemName: "chevron.right").font(.system(size: 12, weight: .medium))
@@ -267,6 +289,13 @@ struct AnniversaryView: View {
 
     private func prevMonth() { if displayMonth == 1 { displayMonth = 12; displayYear -= 1 } else { displayMonth -= 1 } }
     private func nextMonth() { if displayMonth == 12 { displayMonth = 1; displayYear += 1 } else { displayMonth += 1 } }
+
+    private func syncYMText() { yearText = String(displayYear); monthText = String(displayMonth) }
+    private func commitYearMonth() {
+        if let y = Int(yearText.filter(\.isNumber)), (1970...2200).contains(y) { displayYear = y }
+        if let m = Int(monthText.filter(\.isNumber)) { displayMonth = min(max(m, 1), 12) }
+        syncYMText()
+    }
 }
 
 // MARK: - 香囊形状：顶部收窄，身体宽，底部圆角

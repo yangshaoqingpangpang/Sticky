@@ -149,13 +149,12 @@ struct ContentView: View {
                 tabButton("灵感", tab: .notes)
                     .onboardingAnchor("notes")
                 Spacer()
-                if activeTab == .todos {
-                    Text("\(filteredTodos.count)")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundColor(.nuOutline)
-                        .padding(.horizontal, 6).padding(.vertical, 1)
-                        .background(Capsule().fill(Color.nuGray6))
-                }
+                // 计数始终显示(两 tab 都有),避免切换时右侧出现/消失造成画面偏移
+                Text("\(activeTab == .todos ? filteredTodos.count : store.notes.count)")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundColor(.nuOutline)
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(Capsule().fill(Color.nuGray6))
             }
             .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
 
@@ -239,18 +238,18 @@ struct ContentView: View {
         return Button {
             withAnimation(.easeOut(duration: 0.15)) { activeTab = tab }
         } label: {
-            VStack(spacing: 5) {
-                Text(label)
-                    .font(.system(size: small ? 13 : 15, weight: .semibold))
-                    .foregroundColor(active ? .nuOnSurface : .nuOutline)
-                // 选中态:主色下划线指示器
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(active ? store.settings.activeAccent : Color.clear)
-                    .frame(height: 2)
-            }
+            // 选中态:主色浅底胶囊(对齐设计稿)
+            Text(label)
+                .font(.system(size: small ? 12 : 13, weight: .semibold))
+                .foregroundColor(active ? store.settings.activeAccentDeep : .nuOutline)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(active ? store.settings.activeAccent.opacity(0.16) : Color.clear)
+                )
         }
         .buttonStyle(.plain)
-        .padding(.trailing, 16)
+        .padding(.trailing, 4)
     }
 
     var filteredTodos: [Todo] {
@@ -349,7 +348,7 @@ struct SnippetSection: View {
     }
 
     private var list: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 7) {
             ForEach(store.snippets) { s in
                 if editingId == s.id {
                     // Inline editing
@@ -378,11 +377,15 @@ struct SnippetSection: View {
                             .font(.system(size: 10.5))
                             .foregroundColor(store.settings.activeAccentDeep)
                     }
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, 12)
                     .frame(height: rowHeight)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(copiedId == s.id ? Color.nuGray6 : Color.clear)
+                        RoundedRectangle(cornerRadius: 9)
+                            .fill(copiedId == s.id ? Color.nuGray6 : Color.white)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9)
+                            .stroke(Color(white: 0.92), lineWidth: 0.5)
                     )
                     .contentShape(Rectangle())
                     .gesture(

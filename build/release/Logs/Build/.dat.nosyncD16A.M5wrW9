@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>logFormatVersion</key>
+	<integer>12</integer>
+	<key>logs</key>
+	<dict>
+		<key>22543EA7-BD62-46A2-8D9C-FAE8E2CE63CE</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>22543EA7-BD62-46A2-8D9C-FAE8E2CE63CE.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>W</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>2</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>Sticky project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>Sticky</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project Sticky with scheme Sticky and configuration Release</string>
+			<key>timeStartedRecording</key>
+			<real>803495116.01178598</real>
+			<key>timeStoppedRecording</key>
+			<real>803495125.80468702</real>
+			<key>title</key>
+			<string>Building project Sticky with scheme Sticky and configuration Release</string>
+			<key>uniqueIdentifier</key>
+			<string>22543EA7-BD62-46A2-8D9C-FAE8E2CE63CE</string>
+		</dict>
+		<key>590B1A1C-F0B5-46C7-AE13-4D436F5D08D7</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>590B1A1C-F0B5-46C7-AE13-4D436F5D08D7.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>W</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>2</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>Sticky project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>Sticky</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project Sticky with scheme Sticky and configuration Release</string>
+			<key>timeStartedRecording</key>
+			<real>803494762.57445204</real>
+			<key>timeStoppedRecording</key>
+			<real>803494772.78704</real>
+			<key>title</key>
+			<string>Building project Sticky with scheme Sticky and configuration Release</string>
+			<key>uniqueIdentifier</key>
+			<string>590B1A1C-F0B5-46C7-AE13-4D436F5D08D7</string>
+		</dict>
+		<key>69BBEB86-3BB6-4A41-80B7-CCB5A71DF595</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>69BBEB86-3BB6-4A41-80B7-CCB5A71DF595.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>W</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>2</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>Sticky project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>Sticky</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project Sticky with scheme Sticky and configuration Release</string>
+			<key>timeStartedRecording</key>
+			<real>803495006.05403602</real>
+			<key>timeStoppedRecording</key>
+			<real>803495015.74620497</real>
+			<key>title</key>
+			<string>Building project Sticky with scheme Sticky and configuration Release</string>
+			<key>uniqueIdentifier</key>
+			<string>69BBEB86-3BB6-4A41-80B7-CCB5A71DF595</string>
+		</dict>
+	</dict>
+</dict>
+</plist>
