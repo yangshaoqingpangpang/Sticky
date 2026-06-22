@@ -378,10 +378,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "便笺")
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "显示/隐藏  ⌘⇧N", action: #selector(toggle), keyEquivalent: ""))
+        // 显示/隐藏 → AppDelegate.toggle(target=self)
+        let toggleItem = NSMenuItem(title: "显示/隐藏  ⌘⇧N", action: #selector(toggle), keyEquivalent: "")
+        toggleItem.target = self
+        menu.addItem(toggleItem)
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "退出", action: #selector(NSApp.terminate(_:)), keyEquivalent: "q"))
-        for item in menu.items { item.target = self }
+        // 退出 → NSApplication.terminate(必须 target=NSApp,否则 AppDelegate 不响应 terminate: 会被禁用变灰)
+        let quitItem = NSMenuItem(title: "退出", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quitItem.target = NSApp
+        menu.addItem(quitItem)
         statusItem.menu = menu
     }
 
