@@ -1,1 +1,0 @@
-@rpath/边笺.debug.dylib

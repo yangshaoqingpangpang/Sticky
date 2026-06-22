@@ -1,2 +1,0 @@
-Target dependency graph (1 target)
-Target 'Sticky' in project 'Sticky' (no dependencies)
