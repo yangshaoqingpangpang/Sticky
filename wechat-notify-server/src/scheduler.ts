@@ -13,7 +13,7 @@ async function tick(): Promise<void> {
   if (!wechatConfigured()) return;
   const due = store.duePending(new Date());
   for (const r of due) {
-    const c = store.findCandidate(r.candidateId);
+    const c = store.findCandidateInternal(r.candidateId);
     if (!c?.openid) {
       store.updateReminder(r.id, { status: 'failed', error: '候选人未绑定微信' });
       continue;

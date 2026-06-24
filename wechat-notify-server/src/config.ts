@@ -9,7 +9,10 @@ export const config = {
     token: process.env.WECHAT_TOKEN ?? '',          // 回调校验 Token（与公众平台一致）
     templateId: process.env.WECHAT_TEMPLATE_ID ?? '',
   },
-  apiKey: process.env.API_KEY ?? 'dev-local-key',   // app↔后端 鉴权
+  // Sign in with Apple：identityToken 的 aud 必须等于 app 的 bundle id
+  appleBundleId: process.env.APPLE_BUNDLE_ID ?? 'com.yangshaoqing.sticky',
+  // 后端会话 JWT 签名密钥（生产务必改成随机长串）
+  jwtSecret: process.env.JWT_SECRET ?? 'dev-secret-change-me',
   dataFile: process.env.DATA_FILE ?? './data/store.json',
   detailBaseUrl: process.env.DETAIL_BASE_URL ?? '', // 模板消息点击跳转(可空)
 };

@@ -22,15 +22,21 @@ npm start                 # 监听 :9528
 
 见 `.env.example`。关键项：`WECHAT_APPID / WECHAT_APPSECRET / WECHAT_TOKEN / WECHAT_TEMPLATE_ID`、`API_KEY`（app↔后端鉴权）、`PORT`（默认 9528，内网，由 nginx 反代到 https）。
 
-## API（供 macOS app 调用，需 `X-Api-Key`）
+## 鉴权（多租户）
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/health` | 健康检查（无需鉴权） |
-| POST | `/api/candidates/bind-qr` | body `{name}` → 新建候选人 + 返回绑定二维码 `qrUrl` |
-| GET | `/api/candidates` | 候选人列表（含 `openid`/`boundAt` 绑定状态） |
-| POST | `/api/reminders` | body `{candidateId,text,remindAt(ISO)}` → 创建提醒 |
-| GET | `/api/reminders/:id` | 查询提醒状态（pending/sent/failed/read） |
+- app 端 **Sign in with Apple** 拿 `identityToken` → `POST /api/auth/apple` 验签换取后端会话 `sessionToken`（30 天）。
+- 之后所有 `/api/*` 带 `Authorization: Bearer <sessionToken>`，后端据其中的 `ownerId`（= Apple `sub`）做**多租户隔离**：每人只能读写自己名下的候选人/提醒。
+
+## API（供 macOS app 调用）
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/health` | 无 | 健康检查 |
+| POST | `/api/auth/apple` | 无 | body `{identityToken}` → `{ownerId, sessionToken}` |
+| POST | `/api/candidates/bind-qr` | Bearer | body `{name}` → 新建候选人(归属当前 owner) + 绑定二维码 `qrUrl` |
+| GET | `/api/candidates` | Bearer | 当前 owner 的候选人列表（含绑定状态） |
+| POST | `/api/reminders` | Bearer | body `{candidateId,text,remindAt(ISO)}` → 创建提醒 |
+| GET | `/api/reminders/:id` | Bearer | 查询提醒状态（pending/sent/failed/read） |
 
 ## 微信回调（公众平台「服务器配置」填这两个，同一 URL）
 

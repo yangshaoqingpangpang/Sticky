@@ -4,6 +4,7 @@ import { config } from './config.js';
 
 export interface Candidate {
   id: string;
+  ownerId: string;       // 归属的 app 用户(Sign in with Apple 的 sub)
   name: string;          // 备注名（app 内可改）
   bindKey: string;       // 带参二维码 scene_str，扫码后据此绑定 openid
   openid?: string;
@@ -13,6 +14,7 @@ export interface Candidate {
 
 export interface Reminder {
   id: string;
+  ownerId: string;       // 归属的 app 用户
   candidateId: string;
   text: string;
   remindAt: string;      // ISO 时间
@@ -41,12 +43,16 @@ function persist(): void {
 }
 
 export const store = {
-  candidates: (): Candidate[] => db.candidates,
-  reminders: (): Reminder[] => db.reminders,
-  findCandidate: (id: string): Candidate | undefined => db.candidates.find(c => c.id === id),
+  // —— 多租户：对外读写一律按 ownerId 隔离 ——
+  candidatesByOwner: (ownerId: string): Candidate[] => db.candidates.filter(c => c.ownerId === ownerId),
+  findCandidateForOwner: (id: string, ownerId: string): Candidate | undefined =>
+    db.candidates.find(c => c.id === id && c.ownerId === ownerId),
+  reminderForOwner: (id: string, ownerId: string): Reminder | undefined =>
+    db.reminders.find(r => r.id === id && r.ownerId === ownerId),
   addCandidate(c: Candidate): void { db.candidates.push(c); persist(); },
+  addReminder(r: Reminder): void { db.reminders.push(r); persist(); },
 
-  /** 扫码关注事件回调时据 bindKey 绑定 openid */
+  /** 微信扫码回调据 bindKey 绑定 openid（bindKey 全局唯一，天然带出归属，无需 owner 过滤） */
   bind(bindKey: string, openid: string, nickname?: string): Candidate | undefined {
     const c = db.candidates.find(x => x.bindKey === bindKey);
     if (c) {
@@ -58,7 +64,8 @@ export const store = {
     return c;
   },
 
-  addReminder(r: Reminder): void { db.reminders.push(r); persist(); },
+  /** 内部：按 id 找候选人（调度器发送时用，不暴露给 API） */
+  findCandidateInternal: (id: string): Candidate | undefined => db.candidates.find(c => c.id === id),
   updateReminder(id: string, patch: Partial<Reminder>): Reminder | undefined {
     const r = db.reminders.find(x => x.id === id);
     if (r) { Object.assign(r, patch); persist(); }

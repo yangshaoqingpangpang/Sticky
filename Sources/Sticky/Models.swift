@@ -137,6 +137,8 @@ struct AppSettings: Codable {
     var aiAPIKey: String?
     var aiModelName: String?
     var aiSearchPrompt: String?   // AI 帮手检索提示词(自定义,nil=用默认)
+    // 微信提醒后端地址(如 https://wx.example.com),空=未配置
+    var wechatBackendURL: String?
 }
 
 enum SizeMode: String, Codable, CaseIterable {

@@ -1,9 +1,11 @@
 import SwiftUI
 import AppKit
+import AuthenticationServices
 
 struct SettingsView: View {
     @ObservedObject var store: DataStore
     @Binding var page: PanelPage
+    @StateObject private var auth = AuthManager()
     @State private var colorPanelObserver: Any?
     @State private var backupAlert: String?
 
@@ -31,6 +33,7 @@ struct SettingsView: View {
                         sectionLabel("纪念日")
                         EmbeddedCalendar(store: store)
                     }
+                    settingsCard { accountSection }
                     // 无 AI 版本:移除大模型配置卡片
                 }
                 .padding(.horizontal, 16)
@@ -80,6 +83,44 @@ struct SettingsView: View {
                     .background(Color.nuGray6)
                     .cornerRadius(8)
                 }.buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - 微信提醒账号（Sign in with Apple）
+    private var accountSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("微信提醒账号")
+            HStack(spacing: 8) {
+                Text("后端地址").font(.system(size: 12, weight: .medium)).foregroundColor(.nuOnSurfaceVariant).frame(width: 56, alignment: .leading)
+                TextField("https://wx.example.com", text: Binding(
+                    get: { store.settings.wechatBackendURL ?? "" },
+                    set: { store.settings.wechatBackendURL = $0; store.save() }
+                ))
+                .textFieldStyle(.roundedBorder).font(.system(size: 12))
+            }
+            if auth.isLoggedIn {
+                HStack {
+                    Text("已登录 · Apple").font(.system(size: 12)).foregroundColor(.nuGreen)
+                    Spacer()
+                    Text(auth.maskedOwner).font(.system(size: 11, design: .monospaced)).foregroundColor(.nuOutline)
+                }
+                Button("登出") { auth.signOut() }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(store.settings.activeAccentDeep)
+                    .buttonStyle(.plain)
+            } else {
+                SignInWithAppleButton(.signIn,
+                    onRequest: { $0.requestedScopes = [.fullName] },
+                    onCompletion: { auth.handle($0, backendURL: store.settings.wechatBackendURL ?? "") })
+                    .signInWithAppleButtonStyle(.black)
+                    .frame(height: 34)
+                if auth.isAuthing {
+                    Text("登录中…").font(.system(size: 10.5)).foregroundColor(.nuOutline)
+                }
+            }
+            if let e = auth.lastError {
+                Text(e).font(.system(size: 10.5)).foregroundColor(.orange).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
